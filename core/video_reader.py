@@ -29,6 +29,7 @@ class VideoReader:
         self.frame_count = 0
 
         self.current_index = 0
+        self._eof = False
 
     def open(self):
         self.close()
@@ -48,11 +49,8 @@ class VideoReader:
             cv2.CAP_PROP_FPS
         )
 
-        self.frame_count = int(
-            self._capture.get(
-                cv2.CAP_PROP_FRAME_COUNT
-            )
-        )
+        count = self._capture.get(cv2.CAP_PROP_FRAME_COUNT)
+        self.frame_count = int(count) if math.isfinite(count) and count > 0 else 0
 
         if not math.isfinite(self.fps) or self.fps <= 0:
             self.close()
@@ -62,8 +60,12 @@ class VideoReader:
             )
 
         self.current_index = 0
+        self._eof = False
 
     def read(self):
+
+        if self._eof:
+            return None
 
         if self._capture is None:
 
@@ -71,10 +73,17 @@ class VideoReader:
                 "VideoReader尚未打开。"
             )
 
-        success, image = self._capture.read()
+        try:
+            success, image = self._capture.read()
+        except cv2.error as exc:
+            self.close()
+            raise VideoReadError(f"解码失败：{exc}") from exc
 
         if not success:
-
+            self.close()
+            self._eof = True
+            if self.current_index == 0 or (self.frame_count and self.current_index < self.frame_count):
+                raise VideoReadError(f"视频提前结束：已读取 {self.current_index}/{self.frame_count} 帧")
             return None
 
         timestamp = (
@@ -103,7 +112,7 @@ class VideoReader:
 
     def __iter__(self):
 
-        if self._capture is None:
+        if self._capture is None and not self._eof:
             self.open()
 
         return self

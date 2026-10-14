@@ -1,4 +1,5 @@
 from typing import List
+import math
 
 import cv2
 import numpy as np
@@ -21,6 +22,13 @@ class BlackDetector:
         resize_height: int = 180,
     ):
 
+        if not math.isfinite(brightness_threshold) or not 0 <= brightness_threshold <= 255:
+            raise ValueError("亮度阈值必须在 0 到 255 之间")
+        if not math.isfinite(duration_threshold) or duration_threshold <= 0:
+            raise ValueError("持续时间阈值必须大于 0")
+        if resize_width <= 0 or resize_height <= 0:
+            raise ValueError("分析尺寸必须大于 0")
+
         self.brightness_threshold = (
             brightness_threshold
         )
@@ -36,7 +44,8 @@ class BlackDetector:
 
         self._black_start = None
 
-        self._brightness_values = []
+        self._brightness_sum = 0.0
+        self._brightness_count = 0
 
         self._last_timestamp = 0.0
 
@@ -77,6 +86,7 @@ class BlackDetector:
             self._handle_normal_frame(
                 timestamp
             )
+        return is_black
 
     def finish(self, end_time=None):
 
@@ -94,7 +104,8 @@ class BlackDetector:
 
         self._black_start = None
 
-        self._brightness_values = []
+        self._brightness_sum = 0.0
+        self._brightness_count = 0
 
         self._last_timestamp = 0.0
 
@@ -136,11 +147,11 @@ class BlackDetector:
 
             self._black_start = timestamp
 
-            self._brightness_values = []
+            self._brightness_sum = 0.0
+            self._brightness_count = 0
 
-        self._brightness_values.append(
-            brightness
-        )
+        self._brightness_sum += brightness
+        self._brightness_count += 1
 
     def _handle_normal_frame(
         self,
@@ -173,7 +184,7 @@ class BlackDetector:
 
         if (
             duration
-            >=
+            + 1e-9 >=
             self.duration_threshold
         ):
 
@@ -223,21 +234,14 @@ class BlackDetector:
 
         self._black_start = None
 
-        self._brightness_values = []
+        self._brightness_sum = 0.0
+        self._brightness_count = 0
 
     def _get_average_brightness(
         self,
     ) -> float:
 
-        if not self._brightness_values:
-
-            return 0.0
-
-        return float(
-            np.mean(
-                self._brightness_values
-            )
-        )
+        return self._brightness_sum / self._brightness_count if self._brightness_count else 0.0
 
     @staticmethod
     def _get_severity(

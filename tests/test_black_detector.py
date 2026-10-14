@@ -224,3 +224,20 @@ def test_brightness_threshold():
     )
 
     assert brightness < 10
+
+import pytest
+
+@pytest.mark.parametrize('duration,severity', [(0.5, 'LOW'), (1, 'MEDIUM'), (2, 'HIGH')])
+def test_exact_boundary_and_reset(duration, severity):
+    detector = BlackDetector()
+    detector.process(create_black_frame(3))
+    issues = detector.finish(3 + duration)
+    assert issues[0].severity == severity
+    assert detector.finish(3 + duration) == issues
+    detector.reset()
+    assert detector.finish() == []
+
+@pytest.mark.parametrize('kwargs', [{'brightness_threshold': -1}, {'duration_threshold': 0}, {'duration_threshold': float('nan')}])
+def test_invalid_configuration(kwargs):
+    with pytest.raises(ValueError):
+        BlackDetector(**kwargs)
