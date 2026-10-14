@@ -36,3 +36,7 @@ class VideoMetadataError(VideoError):
     """
 
     pass
+
+
+class AnalysisCancelled(VideoError):
+    """用户取消分析；不应保存部分结果作为成功结果。"""
