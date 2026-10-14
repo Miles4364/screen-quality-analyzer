@@ -71,3 +71,28 @@ class DetectedIssue:
     description: str
 
     extra_data: Optional[dict] = None
+
+@dataclass(frozen=True)
+class AnalysisConfig:
+    black_threshold: float = 10.0
+    black_duration: float = 0.5
+    freeze_pixel_threshold: float = 5.0
+    freeze_change_ratio: float = 0.01
+    freeze_duration: float = 0.5
+
+
+@dataclass
+class AnalysisResult:
+    video_metadata: VideoMetadata
+    issues: list[DetectedIssue]
+    processing_time: float
+    processed_frames: int
+    analyzed_duration: float
+
+    @property
+    def statistics(self):
+        return {
+            'black_count': sum(i.issue_type == 'BLACK_SCREEN' for i in self.issues),
+            'freeze_count': sum(i.issue_type == 'FREEZE' for i in self.issues),
+            'total_count': len(self.issues),
+        }
