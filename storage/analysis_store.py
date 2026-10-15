@@ -133,7 +133,7 @@ class AnalysisStore:
                 task_id, datetime.now(timezone.utc).isoformat(), result.video_metadata.filename,
                 encode(asdict(result.video_metadata)), encode(asdict(config or AnalysisConfig())),
                 result.processing_time, result.processed_frames, result.analyzed_duration,
-                mtime, '0.5', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
+                mtime, '0.6', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
             ))
             db.executemany('INSERT INTO issues VALUES (?,?,?)', (
                 (task_id, index, encode(asdict(issue))) for index, issue in enumerate(result.issues)
@@ -171,7 +171,9 @@ class AnalysisStore:
                                     row['processing_time'], row['processed_frames'], row['analyzed_duration'])
             return {'id': task_id, 'result': result, 'title': row['title'], 'project_id': row['project_id'],
                     'config': AnalysisConfig(**json.loads(row['config_json'])),
-                    'source_mtime_ns': row['source_mtime_ns'], 'created_at': row['created_at']}
+                    'source_mtime_ns': row['source_mtime_ns'], 'created_at': row['created_at'],
+                    'project_name': next((p[0] for p in db.execute('SELECT name FROM projects WHERE id=?', (row['project_id'],))), None),
+                    'screenshots': [dict(s) for s in db.execute('SELECT * FROM screenshots WHERE task_id=? ORDER BY created_at', (task_id,))]}
 
     @staticmethod
     def source_available(task):
