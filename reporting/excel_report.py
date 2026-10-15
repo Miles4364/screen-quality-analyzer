@@ -83,7 +83,7 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
         m = result.video_metadata
         overview = _table(book, '分析概况', ['项目', '内容'], [28, 100])
         fields = [
-            ('报告', '智能会议设备投屏质量分析系统 · V0.7'),
+            ('报告', '智能会议设备投屏质量分析系统 · V0.8'),
             ('导出时间（UTC）', datetime.now(timezone.utc).isoformat(timespec='seconds')),
             ('任务 ID', (task or {}).get('id', '未入库')),
             ('任务名称', (task or {}).get('title', m.filename)),
@@ -122,15 +122,27 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
             _put(overview, row, 1, label)
             _put(overview, row, 2, value)
             overview.row_dimensions[row].height = 48 if label == '评分说明' else 34
-        issues = _table(book, '异常明细', ['序号', '类型', '开始时间', '结束时间', '开始（秒）', '结束（秒）', '持续（秒）', '等级', '说明', '检测数据'], [8,18,19,19,14,14,14,12,56,48])
+        from core.review import REVIEW_LABELS, review_counts
+        reviews = (task or {}).get('reviews', [])
+        review_map = {r['issue_ordinal']: r for r in reviews}
+        counts = review_counts(len(result.issues), reviews)
+        for key, count in counts.items():
+            row = overview.max_row + 1
+            _put(overview, row, 1, '人工复核：' + REVIEW_LABELS[key])
+            _put(overview, row, 2, count)
+            overview.row_dimensions[row].height = 24
+        issues = _table(book, '异常明细', ['序号', '类型', '开始时间', '结束时间', '开始（秒）', '结束（秒）', '持续（秒）', '等级', '说明', '检测数据', '复核状态', '复核备注', '复核时间（UTC）'], [8,18,19,19,14,14,14,12,56,48,16,60,34])
         for row, issue in enumerate(result.issues, 2):
             check_cancel()
             values = [row-1, issue.issue_type, seconds_to_time(issue.start_time), seconds_to_time(issue.end_time),
                       issue.start_time, issue.end_time, issue.duration, issue.severity, issue.description,
                       json.dumps(issue.extra_data or {}, ensure_ascii=False, allow_nan=False)]
+            review = review_map.get(row-2, {})
+            values.extend([REVIEW_LABELS[review.get('status', 'PENDING')], review.get('note', ''), review.get('updated_at', '')])
             for col, value in enumerate(values, 1):
                 _put(issues, row, col, value)
             issues.row_dimensions[row].height = 45
+            # 长备注完整保存在单元格，可在 Excel 编辑栏查看。
             color = {'HIGH':'FDE8E7','MEDIUM':'FFF3CD','LOW':'EAF2FF'}.get(issue.severity, 'FFFFFF')
             issues.cell(row, 8).fill = PatternFill('solid', fgColor=color)
         if not result.issues:

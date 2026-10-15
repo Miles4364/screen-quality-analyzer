@@ -23,9 +23,10 @@ class MainWindow(QMainWindow):
         self.result = None
         self.review_dialog = None
         self.report_active = False
+        self.reviews = {}
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.7')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.8')
         self.resize(1050, 800)
         self.setMinimumSize(800, 580)
         root = QWidget()
@@ -96,8 +97,23 @@ class MainWindow(QMainWindow):
         self.summary_label.setObjectName('summary')
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(['异常类型', '开始时间', '结束时间', '持续时间', '等级', '说明'])
+        review_controls = QHBoxLayout()
+        self.review_filter = QComboBox()
+        self.review_filter.addItem('全部复核状态', None)
+        from core.review import REVIEW_LABELS
+        for key, label in REVIEW_LABELS.items():
+            self.review_filter.addItem(label, key)
+        self.review_filter.currentIndexChanged.connect(self.apply_review_filter)
+        self.edit_review_button = QPushButton('记录人工复核')
+        self.edit_review_button.clicked.connect(self.edit_issue_review)
+        self.edit_review_button.setEnabled(False)
+        self.review_summary = QLabel('')
+        review_controls.addWidget(self.review_filter)
+        review_controls.addWidget(self.edit_review_button)
+        review_controls.addWidget(self.review_summary)
+        layout.addLayout(review_controls)
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(['异常类型', '开始时间', '结束时间', '持续时间', '等级', '说明', '复核状态'])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
@@ -157,6 +173,9 @@ class MainWindow(QMainWindow):
     def _path_changed(self):
         if self.worker is None:
             self.result = None
+            self.reviews = {}
+            self.edit_review_button.setEnabled(False)
+            self.review_summary.clear()
             self.export_button.setEnabled(False)
             self.task_id = None
             self.task_title_edit.clear()
@@ -178,6 +197,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText('请选择有效的视频文件')
             return
         self.result = None
+        self.reviews = {}
+        self.review_summary.clear()
         self.export_button.setEnabled(False)
         self.task_id = None
         self.save_result_button.setEnabled(False)
@@ -203,6 +224,7 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _set_busy(self, busy):
+        self.edit_review_button.setEnabled(not busy and self.task_id is not None and bool(self.result and self.result.issues))
         self.project_picker.setEnabled(not busy)
         self.new_project_button.setEnabled(not busy)
         self.task_title_edit.setEnabled(not busy)
@@ -276,6 +298,7 @@ class MainWindow(QMainWindow):
 
         if persist:
             self.save_result()
+        self.refresh_reviews()
 
     def save_result(self):
         if self.result is None or self.task_id is not None:
@@ -284,6 +307,7 @@ class MainWindow(QMainWindow):
             self.task_id = self.store.save_result(self.result, title=self.pending_title, project_id=self.pending_project)
             self.save_result_button.setEnabled(False)
             self.screenshots_button.setEnabled(True)
+            self.edit_review_button.setEnabled(self.worker is None and bool(self.result.issues))
             self.status_label.setText(self.status_label.text() + ' · 已保存')
         except StorageError as exc:
             self.save_result_button.setEnabled(True)
@@ -302,6 +326,45 @@ class MainWindow(QMainWindow):
             self.project_picker.setCurrentIndex(max(0, index))
         except StorageError as exc:
             self.status_label.setText(f'项目列表不可用：{exc}')
+
+    def refresh_reviews(self):
+        from core.review import REVIEW_LABELS, review_counts
+        try:
+            records = self.store.load_task(self.task_id)['reviews'] if self.task_id else []
+        except StorageError as exc:
+            self.status_label.setText(f'复核记录读取失败：{exc}')
+            self.edit_review_button.setEnabled(False)
+            return
+        self.reviews = {r['issue_ordinal']: r for r in records}
+        for row in range(self.table.rowCount()):
+            record = self.reviews.get(row, {})
+            item = QTableWidgetItem(REVIEW_LABELS[record.get('status', 'PENDING')])
+            item.setToolTip(record.get('note', '') + '\n' + record.get('updated_at', ''))
+            self.table.setItem(row, 6, item)
+        counts = review_counts(self.table.rowCount(), records)
+        self.review_summary.setText(' · '.join(f'{REVIEW_LABELS[k]} {v}' for k,v in counts.items()))
+        self.edit_review_button.setEnabled(self.worker is None and self.task_id is not None and bool(self.table.rowCount()))
+        self.apply_review_filter()
+
+    def apply_review_filter(self):
+        selected = self.review_filter.currentData()
+        for row in range(self.table.rowCount()):
+            self.table.setRowHidden(row, selected is not None and self.reviews.get(row, {}).get('status', 'PENDING') != selected)
+        self.table.clearSelection()
+        self.table.setCurrentCell(-1, -1)
+
+    def edit_issue_review(self):
+        if self.worker is not None or self.task_id is None:
+            return
+        row = self.table.currentRow()
+        if row < 0 or self.table.isRowHidden(row):
+            self.status_label.setText('请先选择一条异常')
+            return
+        from gui.issue_review_dialog import IssueReviewDialog
+        dialog = IssueReviewDialog(self.store, self.task_id, row, self.reviews.get(row, {}), self)
+        if dialog.exec():
+            self.refresh_reviews()
+        dialog.deleteLater()
 
     def create_project(self):
         name, accepted = QInputDialog.getText(self, '新建项目', '项目名称（最多 80 字符）')
@@ -462,8 +525,11 @@ class MainWindow(QMainWindow):
                 return
         from gui.review_dialog import ReviewDialog
         row = self.table.currentRow()
+        if row < 0 or self.table.isRowHidden(row):
+            row = next((r for r in range(self.table.rowCount()) if not self.table.isRowHidden(r)), -1)
         if row < 0:
-            row = 0
+            self.status_label.setText('当前筛选下没有异常')
+            return
         self.table.selectRow(row)
         self.review_dialog = ReviewDialog(self.result, self.result.issues[row], self,
                                           store=self.store if self.task_id else None,

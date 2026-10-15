@@ -37,7 +37,7 @@ def test_report_saved_task_roundtrip(tmp_path, result):
     assert book['截图关联']['E2'].value == '可用'
     assert book['截图关联']['F2'].hyperlink.target == screenshot.as_uri()
     assert book['异常明细'].freeze_panes == 'A2'
-    assert book['异常明细'].auto_filter.ref == 'A1:J2'
+    assert book['异常明细'].auto_filter.ref == 'A1:M2'
     assert asdict(result) == original
     book.close()
 
