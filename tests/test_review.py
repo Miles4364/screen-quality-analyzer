@@ -9,7 +9,7 @@ from PySide6.QtGui import QImage
 from core.analysis_engine import AnalysisEngine
 from gui.review_dialog import ReviewDialog
 from tools.generate_samples import generate
-from tests.test_gui import app, window, wait_until
+from tests.test_gui import window, wait_until
 
 
 @pytest.fixture

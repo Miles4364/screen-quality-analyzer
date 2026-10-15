@@ -4,8 +4,9 @@ import sys
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='投屏质量分析桌面版 V0.3')
+    parser = argparse.ArgumentParser(description='投屏质量分析桌面版 V0.4')
     parser.add_argument('video_path', nargs='?', default='')
+    parser.add_argument('--database', help='本地 SQLite 数据库路径')
     args = parser.parse_args(argv)
     try:
         from PySide6.QtWidgets import QApplication
@@ -18,7 +19,7 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName('投屏质量分析')
     app.setStyle('Fusion')
-    window = MainWindow(args.video_path)
+    window = MainWindow(args.video_path, database_path=args.database)
     window.show()
     return app.exec()
 

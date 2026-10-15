@@ -7,18 +7,21 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from gui.worker import AnalysisWorker
+from storage.analysis_store import AnalysisStore, StorageError
 from utils.time_util import seconds_to_time
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, video_path=''):
+    def __init__(self, video_path='', database_path=None):
         super().__init__()
+        self.store = AnalysisStore(database_path) if database_path is not None else AnalysisStore()
+        self.task_id = None
         self.worker = None
         self.result = None
         self.review_dialog = None
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.3')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.4')
         self.resize(1050, 730)
         self.setMinimumSize(800, 580)
         root = QWidget()
@@ -55,6 +58,13 @@ class MainWindow(QMainWindow):
         self.cancel_button.clicked.connect(self.cancel_analysis)
         controls.addWidget(self.start_button)
         controls.addWidget(self.cancel_button)
+        self.history_button = QPushButton('历史记录')
+        self.history_button.clicked.connect(self.open_history)
+        self.save_result_button = QPushButton('保存结果')
+        self.save_result_button.setEnabled(False)
+        self.save_result_button.clicked.connect(self.save_result)
+        controls.addWidget(self.history_button)
+        controls.addWidget(self.save_result_button)
         controls.addStretch()
         self.status_label = QLabel('就绪')
         self.status_label.setTextFormat(Qt.TextFormat.PlainText)
@@ -80,7 +90,13 @@ class MainWindow(QMainWindow):
         self.review_button = QPushButton('查看截图 / 跳转视频')
         self.review_button.setEnabled(False)
         self.review_button.clicked.connect(self.open_review)
-        layout.addWidget(self.review_button)
+        review_row = QHBoxLayout()
+        review_row.addWidget(self.review_button)
+        self.screenshots_button = QPushButton('已保存截图')
+        self.screenshots_button.setEnabled(False)
+        self.screenshots_button.clicked.connect(self.open_screenshots)
+        review_row.addWidget(self.screenshots_button)
+        layout.addLayout(review_row)
         hint = QLabel('判定提示：静态 PPT 或低运动画面可能触发疑似冻结，请结合视频人工复核。')
         hint.setObjectName('muted')
         hint.setWordWrap(True)
@@ -117,6 +133,9 @@ class MainWindow(QMainWindow):
     def _path_changed(self):
         if self.worker is None:
             self.result = None
+            self.task_id = None
+            self.save_result_button.setEnabled(False)
+            self.screenshots_button.setEnabled(False)
             self.review_button.setEnabled(False)
             self.table.setRowCount(0)
             self.summary_label.setText('尚无分析结果')
@@ -133,6 +152,9 @@ class MainWindow(QMainWindow):
             self.status_label.setText('请选择有效的视频文件')
             return
         self.result = None
+        self.task_id = None
+        self.save_result_button.setEnabled(False)
+        self.screenshots_button.setEnabled(False)
         self.review_button.setEnabled(False)
         self._cancel_requested = False
         self.table.setRowCount(0)
@@ -151,6 +173,7 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _set_busy(self, busy):
+        self.history_button.setEnabled(not busy)
         self.start_button.setEnabled(not busy)
         self.browse_button.setEnabled(not busy)
         self.path_edit.setEnabled(not busy)
@@ -184,7 +207,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f'正在分析：已读取 {processed} 帧')
 
     @Slot(object)
-    def _show_result(self, result):
+    def _show_result(self, result, persist=True):
         # 取消与结果信号可能同时入队；用户发出取消后不展示成功结果。
         if self._cancel_requested:
             self._show_cancelled()
@@ -208,6 +231,62 @@ class MainWindow(QMainWindow):
                 item = QTableWidgetItem(value)
                 item.setToolTip(value)
                 self.table.setItem(row, column, item)
+
+        if persist:
+            self.save_result()
+
+    def save_result(self):
+        if self.result is None or self.task_id is not None:
+            return
+        try:
+            self.task_id = self.store.save_result(self.result)
+            self.save_result_button.setEnabled(False)
+            self.screenshots_button.setEnabled(True)
+            self.status_label.setText(self.status_label.text() + ' · 已保存')
+        except StorageError as exc:
+            self.save_result_button.setEnabled(True)
+            self.status_label.setText(f'结果未保存，可点击“保存结果”重试：{exc}')
+
+    def open_history(self):
+        if self.worker is not None:
+            return
+        from gui.history_dialog import HistoryDialog
+        dialog = HistoryDialog(self.store, self)
+        if dialog.exec() and dialog.selected_task_id:
+            self.load_history(dialog.selected_task_id)
+        dialog.deleteLater()
+
+    def load_history(self, task_id):
+        if self.worker is not None or self.review_dialog is not None:
+            return
+        try:
+            task = self.store.load_task(task_id)
+        except StorageError as exc:
+            self.status_label.setText(str(exc))
+            return
+        self.path_edit.setText(task['result'].video_metadata.filepath)
+        self._cancel_requested = False
+        self.task_id = task_id
+        self._show_metadata(task['result'].video_metadata)
+        self._show_result(task['result'], persist=False)
+        self.save_result_button.setEnabled(False)
+        self.screenshots_button.setEnabled(True)
+        available = self.store.source_available(task)
+        self.review_button.setEnabled(available and bool(self.result.issues))
+        self.status_label.setText('已打开历史结果' if available else '历史结果已打开；源视频缺失或已更改，无法复核。已有截图仍可查看。')
+
+    def open_screenshots(self):
+        if self.task_id is None:
+            return
+        from gui.history_dialog import ScreenshotsDialog
+        try:
+            records = self.store.list_screenshots(self.task_id)
+        except StorageError as exc:
+            self.status_label.setText(str(exc))
+            return
+        dialog = ScreenshotsDialog(records, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     @Slot()
     def _show_cancelled(self):
@@ -244,12 +323,22 @@ class MainWindow(QMainWindow):
         if self.review_dialog is not None:
             self.review_dialog.raise_()
             return
+        if self.task_id is not None:
+            try:
+                if not self.store.source_available(self.store.load_task(self.task_id)):
+                    self.status_label.setText('源视频缺失或已更改，无法复核；已有截图仍可查看。')
+                    return
+            except StorageError as exc:
+                self.status_label.setText(str(exc))
+                return
         from gui.review_dialog import ReviewDialog
         row = self.table.currentRow()
         if row < 0:
             row = 0
         self.table.selectRow(row)
-        self.review_dialog = ReviewDialog(self.result, self.result.issues[row], self)
+        self.review_dialog = ReviewDialog(self.result, self.result.issues[row], self,
+                                          store=self.store if self.task_id else None,
+                                          task_id=self.task_id, issue_ordinal=row)
         self.review_dialog.setModal(True)
         self.review_dialog.finished.connect(self._review_finished)
         self.review_dialog.show()

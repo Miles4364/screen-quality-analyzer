@@ -13,11 +13,6 @@ from exceptions.video_exception import AnalysisCancelled
 from tools.generate_samples import generate
 
 
-@pytest.fixture(scope='module')
-def app():
-    return QApplication.instance() or QApplication([])
-
-
 def wait_until(app, condition, timeout=10000):
     deadline = time.monotonic() + timeout / 1000
     while not condition() and time.monotonic() < deadline:
@@ -27,14 +22,15 @@ def wait_until(app, condition, timeout=10000):
 
 
 @pytest.fixture
-def window(app):
-    w = MainWindow()
+def window(app, tmp_path):
+    w = MainWindow(database_path=tmp_path / 'gui.sqlite3')
     w.show()
     yield w
     if w.worker is not None:
         w.cancel_analysis()
         wait_until(app, lambda: w.worker is None)
     w.close()
+    w.deleteLater()
     app.processEvents()
 
 

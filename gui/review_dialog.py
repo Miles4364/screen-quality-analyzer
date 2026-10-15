@@ -6,15 +6,19 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (QDialog, QLabel, QPushButton, QSlider,
                               QVBoxLayout, QHBoxLayout, QFileDialog)
 from gui.review_worker import ReviewWorker
+from storage.analysis_store import StorageError
 from utils.time_util import seconds_to_time
 
 
 class ReviewDialog(QDialog):
-    def __init__(self, result, issue, parent=None):
+    def __init__(self, result, issue, parent=None, *, store=None, task_id=None, issue_ordinal=None):
         super().__init__(parent)
-        self.setWindowTitle('异常画面复核 · V0.3')
+        self.setWindowTitle('异常画面复核 · V0.4')
         self.resize(900, 650)
         self.setMinimumSize(640, 480)
+        self.store = store
+        self.task_id = task_id
+        self.issue_ordinal = issue_ordinal
         self.fps = result.video_metadata.fps
         self.count = result.processed_frames
         self.issue = issue
@@ -167,6 +171,12 @@ class ReviewDialog(QDialog):
             raise ValueError('请先暂停并等待画面加载完成')
         if not self.current_image.save(str(path), 'PNG'):
             raise OSError('无法写入截图，请检查目标目录与权限')
+        if self.store is not None and self.task_id is not None:
+            try:
+                self.store.add_screenshot(self.task_id, self.issue_ordinal, path,
+                                          self.current_frame.index, self.current_frame.timestamp)
+            except StorageError as exc:
+                raise StorageError(f'截图文件已保存，但历史关联失败：{exc}') from exc
 
     def save_dialog(self):
         self.pause()
@@ -179,8 +189,9 @@ class ReviewDialog(QDialog):
                 path += '.png'
             try:
                 self.save_image(path)
-                self.status.setText(f'截图已保存：{path}')
-            except (ValueError, OSError) as exc:
+                suffix = '（已关联历史任务）' if self.task_id else '（当前结果未入库，无历史关联）'
+                self.status.setText(f'截图已保存：{path}{suffix}')
+            except (ValueError, OSError, StorageError) as exc:
                 self.status.setText(str(exc))
 
     def reject(self):
