@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMainWindow, QProgressBar, QPushButton, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget, QComboBox, QInputDialog,
 )
 from gui.worker import AnalysisWorker
 from storage.analysis_store import AnalysisStore, StorageError
@@ -16,13 +16,15 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.store = AnalysisStore(database_path) if database_path is not None else AnalysisStore()
         self.task_id = None
+        self.pending_title = None
+        self.pending_project = None
         self.worker = None
         self.result = None
         self.review_dialog = None
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.4')
-        self.resize(1050, 730)
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.5')
+        self.resize(1050, 800)
         self.setMinimumSize(800, 580)
         root = QWidget()
         self.setCentralWidget(root)
@@ -44,6 +46,19 @@ class MainWindow(QMainWindow):
         row.addWidget(self.path_edit, 1)
         row.addWidget(self.browse_button)
         layout.addLayout(row)
+        task_row = QHBoxLayout()
+        self.project_picker = QComboBox()
+        self.project_picker.addItem('未分组', None)
+        self.new_project_button = QPushButton('新建项目')
+        self.new_project_button.clicked.connect(self.create_project)
+        self.task_title_edit = QLineEdit()
+        self.task_title_edit.setMaxLength(120)
+        self.task_title_edit.setPlaceholderText('任务名称（留空使用视频文件名）')
+        task_row.addWidget(QLabel('项目'))
+        task_row.addWidget(self.project_picker)
+        task_row.addWidget(self.new_project_button)
+        task_row.addWidget(self.task_title_edit, 1)
+        layout.addLayout(task_row)
         self.metadata_label = QLabel('视频参数将在开始分析后显示')
         self.metadata_label.setTextFormat(Qt.TextFormat.PlainText)
         self.metadata_label.setWordWrap(True)
@@ -119,6 +134,7 @@ class MainWindow(QMainWindow):
             QTableWidget { background: white; alternate-background-color: #f6f9fd; gridline-color: #e5ebf3; border: 1px solid #dbe3ee; }
             QHeaderView::section { background: #eaf0f8; padding: 10px; border: none; font-weight: 600; }
         ''')
+        self.refresh_projects()
 
     @Slot()
     def choose_file(self):
@@ -134,6 +150,7 @@ class MainWindow(QMainWindow):
         if self.worker is None:
             self.result = None
             self.task_id = None
+            self.task_title_edit.clear()
             self.save_result_button.setEnabled(False)
             self.screenshots_button.setEnabled(False)
             self.review_button.setEnabled(False)
@@ -156,6 +173,8 @@ class MainWindow(QMainWindow):
         self.save_result_button.setEnabled(False)
         self.screenshots_button.setEnabled(False)
         self.review_button.setEnabled(False)
+        self.pending_title = self.task_title_edit.text().strip() or None
+        self.pending_project = self.project_picker.currentData()
         self._cancel_requested = False
         self.table.setRowCount(0)
         self.summary_label.setText('正在分析，完成后显示结果')
@@ -173,6 +192,9 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _set_busy(self, busy):
+        self.project_picker.setEnabled(not busy)
+        self.new_project_button.setEnabled(not busy)
+        self.task_title_edit.setEnabled(not busy)
         self.history_button.setEnabled(not busy)
         self.start_button.setEnabled(not busy)
         self.browse_button.setEnabled(not busy)
@@ -239,13 +261,35 @@ class MainWindow(QMainWindow):
         if self.result is None or self.task_id is not None:
             return
         try:
-            self.task_id = self.store.save_result(self.result)
+            self.task_id = self.store.save_result(self.result, title=self.pending_title, project_id=self.pending_project)
             self.save_result_button.setEnabled(False)
             self.screenshots_button.setEnabled(True)
             self.status_label.setText(self.status_label.text() + ' · 已保存')
         except StorageError as exc:
             self.save_result_button.setEnabled(True)
             self.status_label.setText(f'结果未保存，可点击“保存结果”重试：{exc}')
+
+    def refresh_projects(self, selected='keep'):
+        if selected == 'keep':
+            selected = self.project_picker.currentData()
+        try:
+            projects = self.store.list_projects()
+            self.project_picker.clear()
+            self.project_picker.addItem('未分组', None)
+            for project in projects:
+                self.project_picker.addItem(project['name'], project['id'])
+            index = self.project_picker.findData(selected)
+            self.project_picker.setCurrentIndex(max(0, index))
+        except StorageError as exc:
+            self.status_label.setText(f'项目列表不可用：{exc}')
+
+    def create_project(self):
+        name, accepted = QInputDialog.getText(self, '新建项目', '项目名称（最多 80 字符）')
+        if accepted:
+            try:
+                self.refresh_projects(self.store.create_project(name))
+            except StorageError as exc:
+                self.status_label.setText(str(exc))
 
     def open_history(self):
         if self.worker is not None:
@@ -255,6 +299,7 @@ class MainWindow(QMainWindow):
         if dialog.exec() and dialog.selected_task_id:
             self.load_history(dialog.selected_task_id)
         dialog.deleteLater()
+        self.refresh_projects()
 
     def load_history(self, task_id):
         if self.worker is not None or self.review_dialog is not None:
@@ -267,6 +312,8 @@ class MainWindow(QMainWindow):
         self.path_edit.setText(task['result'].video_metadata.filepath)
         self._cancel_requested = False
         self.task_id = task_id
+        self.refresh_projects(task['project_id'])
+        self.task_title_edit.setText(task['title'])
         self._show_metadata(task['result'].video_metadata)
         self._show_result(task['result'], persist=False)
         self.save_result_button.setEnabled(False)

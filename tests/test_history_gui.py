@@ -28,7 +28,7 @@ def test_auto_save_and_history_reload(app, window, result):
 
 def test_save_failure_retry_and_cancel(window, result, monkeypatch):
     original = window.store.save_result
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise StorageError('模拟写入失败')
     monkeypatch.setattr(window.store, 'save_result', fail)
     window._show_result(result)
@@ -92,7 +92,7 @@ def test_screenshot_association_failure_keeps_file(app, window, result, tmp_path
     window.open_review()
     review = window.review_dialog
     settled(app, review, 30)
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise StorageError('模拟数据库锁定')
     monkeypatch.setattr(window.store, 'add_screenshot', fail)
     target = tmp_path / 'kept.png'
