@@ -18,12 +18,14 @@ class MainWindow(QMainWindow):
         self.task_id = None
         self.pending_title = None
         self.pending_project = None
+        self.pending_project_name = None
         self.worker = None
         self.result = None
         self.review_dialog = None
+        self.report_active = False
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.5')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.6')
         self.resize(1050, 800)
         self.setMinimumSize(800, 580)
         root = QWidget()
@@ -111,6 +113,10 @@ class MainWindow(QMainWindow):
         self.screenshots_button.setEnabled(False)
         self.screenshots_button.clicked.connect(self.open_screenshots)
         review_row.addWidget(self.screenshots_button)
+        self.export_button = QPushButton('导出 Excel 报告')
+        self.export_button.setEnabled(False)
+        self.export_button.clicked.connect(self.export_dialog)
+        review_row.addWidget(self.export_button)
         layout.addLayout(review_row)
         hint = QLabel('判定提示：静态 PPT 或低运动画面可能触发疑似冻结，请结合视频人工复核。')
         hint.setObjectName('muted')
@@ -149,6 +155,7 @@ class MainWindow(QMainWindow):
     def _path_changed(self):
         if self.worker is None:
             self.result = None
+            self.export_button.setEnabled(False)
             self.task_id = None
             self.task_title_edit.clear()
             self.save_result_button.setEnabled(False)
@@ -169,12 +176,14 @@ class MainWindow(QMainWindow):
             self.status_label.setText('请选择有效的视频文件')
             return
         self.result = None
+        self.export_button.setEnabled(False)
         self.task_id = None
         self.save_result_button.setEnabled(False)
         self.screenshots_button.setEnabled(False)
         self.review_button.setEnabled(False)
         self.pending_title = self.task_title_edit.text().strip() or None
         self.pending_project = self.project_picker.currentData()
+        self.pending_project_name = self.project_picker.currentText() if self.pending_project else None
         self._cancel_requested = False
         self.table.setRowCount(0)
         self.summary_label.setText('正在分析，完成后显示结果')
@@ -195,6 +204,8 @@ class MainWindow(QMainWindow):
         self.project_picker.setEnabled(not busy)
         self.new_project_button.setEnabled(not busy)
         self.task_title_edit.setEnabled(not busy)
+        self.export_button.setEnabled(not busy and self.result is not None)
+        self.save_result_button.setEnabled(not busy and self.result is not None and self.task_id is None)
         self.history_button.setEnabled(not busy)
         self.start_button.setEnabled(not busy)
         self.browse_button.setEnabled(not busy)
@@ -207,7 +218,7 @@ class MainWindow(QMainWindow):
             self._cancel_requested = True
             self.worker.cancel()
             self.cancel_button.setEnabled(False)
-            self.status_label.setText('正在取消，等待当前读取完成…')
+            self.status_label.setText('正在取消，等待当前操作完成…')
 
     @Slot(object)
     def _show_metadata(self, metadata):
@@ -235,6 +246,7 @@ class MainWindow(QMainWindow):
             self._show_cancelled()
             return
         self.result = result
+        self.export_button.setEnabled(self.worker is None)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
         stats = result.statistics
@@ -322,8 +334,68 @@ class MainWindow(QMainWindow):
         self.review_button.setEnabled(available and bool(self.result.issues))
         self.status_label.setText('已打开历史结果' if available else '历史结果已打开；源视频缺失或已更改，无法复核。已有截图仍可查看。')
 
+    def export_dialog(self):
+        if self.result is None or self.worker is not None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, '导出 Excel 报告', '投屏质量分析报告.xlsx', 'Excel 工作簿 (*.xlsx)')
+        if path:
+            if not path.lower().endswith('.xlsx'):
+                path += '.xlsx'
+                # 补扩展名后若存在目标，让对话框对最终文件名再次确认覆盖。
+                if Path(path).exists():
+                    from PySide6.QtWidgets import QMessageBox
+                    if QMessageBox.question(self, '覆盖报告', f'文件已存在，是否覆盖？\n{path}') != QMessageBox.StandardButton.Yes:
+                        return
+            self.export_report_to(path, overwrite=True)
+
+    def export_report_to(self, path, overwrite=False):
+        if self.result is None or self.worker is not None:
+            return
+        from copy import deepcopy
+        from gui.report_worker import ReportWorker
+        try:
+            task = self.store.load_task(self.task_id) if self.task_id else None
+        except StorageError as exc:
+            self.status_label.setText(f'无法读取报告资料：{exc}')
+            return
+        if task is None:
+            task = {'title': self.pending_title or self.result.video_metadata.filename,
+                    'project_name': self.pending_project_name}
+        self.worker = ReportWorker(deepcopy(self.result), path,
+                                   {'task': deepcopy(task), 'overwrite': overwrite,
+                                    'protected_paths': [self.store.path]}, self)
+        self.report_active = True
+        self._cancel_requested = False
+        self._set_busy(True)
+        self.cancel_button.setText('取消导出')
+        self.progress_bar.setRange(0, 0)
+        self.status_label.setText('正在生成 Excel 报告…')
+        self.worker.ready.connect(self._report_ready)
+        self.worker.failed.connect(self._report_failed)
+        self.worker.cancelled.connect(self._report_cancelled)
+        self.worker.finished.connect(self._finished)
+        self.worker.start()
+
+    @Slot(str)
+    def _report_ready(self, path):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100)
+        self.status_label.setText(f'报告已导出：{path}')
+
+    @Slot(str)
+    def _report_failed(self, message):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100)
+        self.status_label.setText(f'报告导出失败（分析结果保留）：{message}')
+
+    @Slot()
+    def _report_cancelled(self):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(100)
+        self.status_label.setText('报告导出已取消，分析结果保留')
+
     def open_screenshots(self):
-        if self.task_id is None:
+        if self.task_id is None or self.worker is not None:
             return
         from gui.history_dialog import ScreenshotsDialog
         try:
@@ -358,6 +430,8 @@ class MainWindow(QMainWindow):
     def _finished(self):
         worker = self.worker
         self.worker = None
+        self.report_active = False
+        self.cancel_button.setText('取消分析')
         self._set_busy(False)
         if worker is not None:
             worker.deleteLater()

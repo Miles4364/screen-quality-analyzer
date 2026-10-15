@@ -13,7 +13,7 @@ from utils.time_util import seconds_to_time
 class ReviewDialog(QDialog):
     def __init__(self, result, issue, parent=None, *, store=None, task_id=None, issue_ordinal=None):
         super().__init__(parent)
-        self.setWindowTitle('异常画面复核 · V0.5')
+        self.setWindowTitle('异常画面复核 · V0.6')
         self.resize(900, 650)
         self.setMinimumSize(640, 480)
         self.store = store
