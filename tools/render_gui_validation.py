@@ -47,7 +47,7 @@ def finish():
             timer.stop()
             window.close()
             return
-        target = Path('docs/images/v07-analysis.png')
+        target = Path('docs/images/v08-analysis.png')
         target.parent.mkdir(parents=True, exist_ok=True)
         assert window.grab().save(str(target))
         print(window.result.statistics)
@@ -62,9 +62,9 @@ def finish():
             print(dialog.status.text())
         else:
             assert dialog.current_frame.index == round(25 * dialog.fps)
-            assert dialog.grab().save('docs/images/v07-review.png')
+            assert dialog.grab().save('docs/images/v08-review.png')
             Path('screenshots').mkdir(exist_ok=True)
-            dialog.save_image('screenshots/v07-freeze-25s.png')
+            dialog.save_image('screenshots/v08-freeze-25s.png')
             print(f'Frame {dialog.current_frame.index}, image {dialog.current_image.width()}x{dialog.current_image.height()}')
             exit_code = 0
         stage = 'history'
@@ -73,6 +73,16 @@ def finish():
         from storage.analysis_store import AnalysisStore
         from gui.history_dialog import HistoryDialog
         store = AnalysisStore(args.database)
+        from gui.issue_review_dialog import IssueReviewDialog
+        review = IssueReviewDialog(store, window.task_id, 1, {}, window)
+        review.status_picker.setCurrentIndex(2)
+        review.note_edit.setPlainText('测试复核：静态画面，标记误报用于验证流程。')
+        review.show()
+        app.processEvents()
+        assert review.grab().save('docs/images/v08-review-editor.png')
+        review.save()
+        review.deleteLater()
+        store.save_review(window.task_id, 0, 'CONFIRMED', '确认黑屏')
         task = store.load_task(window.task_id)
         assert task['result'].statistics == window.result.statistics
         assert task['project_id'] == project_id
@@ -83,11 +93,11 @@ def finish():
         history.project_filter.setCurrentIndex(history.project_filter.findData(project_id))
         history.show()
         app.processEvents()
-        assert history.grab().save('docs/images/v07-history.png')
+        assert history.grab().save('docs/images/v08-history.png')
         print('Reopened task and screenshot association verified')
         history.close()
         history.deleteLater()
-        window.export_report_to('reports/v07-validation.xlsx', overwrite=True)
+        window.export_report_to('reports/v08-validation.xlsx', overwrite=True)
         stage = 'report'
     elif stage == 'report' and window.worker is None:
         from openpyxl import load_workbook
@@ -95,17 +105,22 @@ def finish():
             print(window.status_label.text())
             exit_code = 1
         else:
-            book = load_workbook('reports/v07-validation.xlsx')
+            book = load_workbook('reports/v08-validation.xlsx')
             summary = dict(book['分析概况'].iter_rows(min_row=2, values_only=True))
             assert summary['异常总数'] == 4
             assert summary['辅助质量评分（满分100）'] == 90.83
             assert '90.83 / 100' in window.summary_label.text()
             assert summary['关联截图数'] == 1
+            assert summary['人工复核：确认异常'] == 1
+            assert summary['人工复核：误报'] == 1
+            assert summary['人工复核：待复核'] == 2
+            assert book['异常明细']['K3'].value == '误报'
+            assert book['异常明细']['L3'].value.startswith('测试复核')
             assert book['异常明细'].max_row == 5
             assert book['截图关联']['E2'].value == '可用'
             assert book['截图关联']['F2'].hyperlink is not None
             book.close()
-            assert window.grab().save('docs/images/v07-export.png')
+            assert window.grab().save('docs/images/v08-export.png')
             print('XLSX: 4 issues, 1 verified screenshot, saved task metadata confirmed')
         timer.stop()
         window.close()
