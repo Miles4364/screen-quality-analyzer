@@ -38,7 +38,7 @@ def test_upgrade_retains_result_screenshots_and_version(legacy, result):
     assert store.list_screenshots('old')[0]['sha256'] == 'digest'
     assert len(AnalysisStore(legacy).list_tasks()) == 1
     with sqlite3.connect(legacy) as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 2
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 3
         assert db.execute('PRAGMA foreign_key_check').fetchall() == []
 
 

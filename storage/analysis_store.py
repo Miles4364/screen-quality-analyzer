@@ -61,7 +61,10 @@ class AnalysisStore:
                     version = 1
                 if version == 1:
                     self._migrate_v2(connection)
-                elif version != 2:
+                    version = 2
+                if version == 2:
+                    self._migrate_v3(connection)
+                elif version != 3:
                     raise StorageError(f'不支持数据库版本 {version}，请使用匹配的软件版本')
                 yield connection
         except sqlite3.IntegrityError as exc:
@@ -75,6 +78,29 @@ class AnalysisStore:
         finally:
             if connection is not None:
                 connection.close()
+
+    @staticmethod
+    def _migrate_v3(db):
+        db.execute('''CREATE TABLE reviews (
+            task_id TEXT NOT NULL, issue_ordinal INTEGER NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('PENDING','CONFIRMED','FALSE_POSITIVE')),
+            note TEXT NOT NULL CHECK(length(note)<=2000), updated_at TEXT NOT NULL,
+            PRIMARY KEY(task_id,issue_ordinal),
+            FOREIGN KEY(task_id,issue_ordinal) REFERENCES issues(task_id,ordinal) ON DELETE CASCADE)''')
+        db.execute('PRAGMA user_version = 3')
+
+    def save_review(self, task_id, ordinal, status, note):
+        if status not in ('PENDING', 'CONFIRMED', 'FALSE_POSITIVE'):
+            raise StorageError('无效复核状态')
+        if not isinstance(note, str) or len(note) > 2000:
+            raise StorageError('复核备注最多 2000 个字符')
+        if type(ordinal) is not int or ordinal < 0:
+            raise StorageError('无效异常序号')
+        with self.connection() as db:
+            db.execute('''INSERT INTO reviews VALUES (?,?,?,?,?)
+                ON CONFLICT(task_id,issue_ordinal) DO UPDATE SET
+                status=excluded.status,note=excluded.note,updated_at=excluded.updated_at''',
+                (task_id, ordinal, status, note, datetime.now(timezone.utc).isoformat()))
 
     @staticmethod
     def _migrate_v2(db):
@@ -133,7 +159,7 @@ class AnalysisStore:
                 task_id, datetime.now(timezone.utc).isoformat(), result.video_metadata.filename,
                 encode(asdict(result.video_metadata)), encode(asdict(config or AnalysisConfig())),
                 result.processing_time, result.processed_frames, result.analyzed_duration,
-                mtime, '0.7', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
+                mtime, '0.8', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
             ))
             db.executemany('INSERT INTO issues VALUES (?,?,?)', (
                 (task_id, index, encode(asdict(issue))) for index, issue in enumerate(result.issues)
@@ -171,6 +197,7 @@ class AnalysisStore:
                                     row['processing_time'], row['processed_frames'], row['analyzed_duration'])
             return {'id': task_id, 'result': result, 'title': row['title'], 'project_id': row['project_id'],
                     'config': AnalysisConfig(**json.loads(row['config_json'])),
+                    'reviews': [dict(r) for r in db.execute('SELECT * FROM reviews WHERE task_id=? ORDER BY issue_ordinal', (task_id,))],
                     'source_mtime_ns': row['source_mtime_ns'], 'created_at': row['created_at'],
                     'project_name': next((p[0] for p in db.execute('SELECT name FROM projects WHERE id=?', (row['project_id'],))), None),
                     'screenshots': [dict(s) for s in db.execute('SELECT * FROM screenshots WHERE task_id=? ORDER BY created_at', (task_id,))]}
