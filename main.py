@@ -7,11 +7,13 @@ from core.analysis_engine import AnalysisEngine
 from core.models import AnalysisConfig
 from exceptions.video_exception import VideoError
 from utils.time_util import seconds_to_time
+from storage.analysis_store import AnalysisStore, StorageError
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='投屏质量分析：Metadata、BlackScreen、Freeze')
     parser.add_argument('video_path', help='待分析的视频路径')
+    parser.add_argument('--database', help='可选：保存结果到指定 SQLite 数据库')
     parser.add_argument('--json', action='store_true', help='输出可机器读取的 JSON')
     for name, default in asdict(AnalysisConfig()).items():
         parser.add_argument('--' + name.replace('_', '-'), type=float, default=default)
@@ -22,11 +24,22 @@ def main(argv=None):
     except (VideoError, ValueError) as exc:
         print(f'分析失败：{exc}', file=sys.stderr)
         return 1
+    task_id = None
+    if args.database:
+        try:
+            task_id = AnalysisStore(args.database).save_result(result, config)
+        except StorageError as exc:
+            print(f'分析完成，但结果保存失败：{exc}', file=sys.stderr)
+            return 1
     if args.json:
         data = asdict(result)
         data['statistics'] = result.statistics
+        if task_id is not None:
+            data['task_id'] = task_id
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
+    if task_id:
+        print(f'历史任务：{task_id}')
     m = result.video_metadata
     print('智能会议设备投屏质量分析系统 技术验证版 V0.1')
     print(f'Metadata：{m.filename} | {m.resolution} | {m.fps:.3f} FPS')
