@@ -27,22 +27,45 @@ window.setStyleSheet(window.styleSheet().replace('Microsoft YaHei UI', 'Microsof
 window.show()
 window.start_analysis()
 exit_code = 1
+stage = 'analysis'
+
 
 def finish():
-    global exit_code
-    if window.worker is not None:
-        return
-    if window.result is not None and window.table.rowCount() == 4:
-        target = Path('docs/images/v02-analysis.png')
+    global exit_code, stage
+    if stage == 'analysis':
+        if window.worker is not None:
+            return
+        if window.result is None or window.table.rowCount() != 4:
+            print(window.status_label.text())
+            timer.stop()
+            window.close()
+            return
+        target = Path('docs/images/v03-analysis.png')
         target.parent.mkdir(parents=True, exist_ok=True)
         assert window.grab().save(str(target))
         print(window.result.statistics)
-        exit_code = 0
-    else:
-        print(window.status_label.text())
-    timer.stop()
-    window.close()
-    app.quit()
+        window.table.selectRow(1)
+        window.open_review()
+        stage = 'review'
+    elif stage == 'review':
+        dialog = window.review_dialog
+        if dialog.busy:
+            return
+        if dialog.current_frame is None:
+            print(dialog.status.text())
+        else:
+            assert dialog.current_frame.index == round(25 * dialog.fps)
+            assert dialog.grab().save('docs/images/v03-review.png')
+            Path('screenshots').mkdir(exist_ok=True)
+            dialog.save_image('screenshots/v03-freeze-25s.png')
+            print(f'Frame {dialog.current_frame.index}, image {dialog.current_image.width()}x{dialog.current_image.height()}')
+            exit_code = 0
+        stage = 'closing'
+        window.close()
+    elif stage == 'closing' and window.review_dialog is None:
+        timer.stop()
+        app.quit()
+
 
 timer = QTimer()
 timer.timeout.connect(finish)
