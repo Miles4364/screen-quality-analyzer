@@ -14,10 +14,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='投屏质量分析：Metadata、BlackScreen、Freeze')
     parser.add_argument('video_path', help='待分析的视频路径')
     parser.add_argument('--database', help='可选：保存结果到指定 SQLite 数据库')
+    parser.add_argument('--task-name', help='保存任务的自定义名称')
+    parser.add_argument('--project-id', help='已存在项目的 ID；不传则未分组')
     parser.add_argument('--json', action='store_true', help='输出可机器读取的 JSON')
     for name, default in asdict(AnalysisConfig()).items():
         parser.add_argument('--' + name.replace('_', '-'), type=float, default=default)
     args = parser.parse_args(argv)
+    if (args.task_name or args.project_id) and not args.database:
+        parser.error('--task-name 和 --project-id 需要 --database')
     config = AnalysisConfig(**{name: getattr(args, name) for name in asdict(AnalysisConfig())})
     try:
         result = AnalysisEngine(config).analyze(args.video_path)
@@ -27,7 +31,7 @@ def main(argv=None):
     task_id = None
     if args.database:
         try:
-            task_id = AnalysisStore(args.database).save_result(result, config)
+            task_id = AnalysisStore(args.database).save_result(result, config, title=args.task_name, project_id=args.project_id)
         except StorageError as exc:
             print(f'分析完成，但结果保存失败：{exc}', file=sys.stderr)
             return 1
