@@ -39,6 +39,7 @@ def probe_video(filepath: str) -> dict:
             errors="replace",
             check=False,
             timeout=30,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
 
     except FileNotFoundError as exc:
