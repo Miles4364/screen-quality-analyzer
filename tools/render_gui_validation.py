@@ -12,6 +12,7 @@ from gui.main_window import MainWindow
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('video', nargs='?', default='samples/final_validation.mp4')
+parser.add_argument('--database', default='data/gui-validation.sqlite3')
 args = parser.parse_args()
 app = QApplication([])
 # 离屏平台不会自动发现 Windows 字体，显式加载仅用于渲染验收。
@@ -22,7 +23,7 @@ if font.exists():
     if families:
         app.setFont(QFont(families[0], 10))
 app.setStyle('Fusion')
-window = MainWindow(args.video)
+window = MainWindow(args.video, database_path=args.database)
 window.setStyleSheet(window.styleSheet().replace('Microsoft YaHei UI', 'Microsoft YaHei'))
 window.show()
 window.start_analysis()
@@ -40,7 +41,7 @@ def finish():
             timer.stop()
             window.close()
             return
-        target = Path('docs/images/v03-analysis.png')
+        target = Path('docs/images/v04-analysis.png')
         target.parent.mkdir(parents=True, exist_ok=True)
         assert window.grab().save(str(target))
         print(window.result.statistics)
@@ -55,15 +56,29 @@ def finish():
             print(dialog.status.text())
         else:
             assert dialog.current_frame.index == round(25 * dialog.fps)
-            assert dialog.grab().save('docs/images/v03-review.png')
+            assert dialog.grab().save('docs/images/v04-review.png')
             Path('screenshots').mkdir(exist_ok=True)
-            dialog.save_image('screenshots/v03-freeze-25s.png')
+            dialog.save_image('screenshots/v04-freeze-25s.png')
             print(f'Frame {dialog.current_frame.index}, image {dialog.current_image.width()}x{dialog.current_image.height()}')
             exit_code = 0
-        stage = 'closing'
-        window.close()
-    elif stage == 'closing' and window.review_dialog is None:
+        stage = 'history'
+        dialog.close()
+    elif stage == 'history' and window.review_dialog is None:
+        from storage.analysis_store import AnalysisStore
+        from gui.history_dialog import HistoryDialog
+        store = AnalysisStore(args.database)
+        task = store.load_task(window.task_id)
+        assert task['result'].statistics == window.result.statistics
+        assert len(store.list_screenshots(window.task_id)) == 1
+        window.load_history(window.task_id)
+        history = HistoryDialog(store, window)
+        history.show()
+        app.processEvents()
+        assert history.grab().save('docs/images/v04-history.png')
+        print('Reopened task and screenshot association verified')
+        history.close()
         timer.stop()
+        window.close()
         app.quit()
 
 
