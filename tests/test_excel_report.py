@@ -30,6 +30,8 @@ def test_report_saved_task_roundtrip(tmp_path, result):
     assert summary['所属项目'] == '会议室 A'
     assert summary['异常总数'] == 1
     assert summary['关联截图数'] == 1
+    assert summary['辅助质量评分（满分100）'] == result.quality.score
+    assert summary['评分规则版本'] == 'duration-v1'
     assert book['异常明细']['E2'].value == 1
     assert book['异常明细']['G2'].value == 1
     assert book['截图关联']['E2'].value == '可用'

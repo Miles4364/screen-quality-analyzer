@@ -14,6 +14,7 @@ def test_gui_export_saved_history(app,window,result,tmp_path):
     task_id=window.task_id
     window.store.rename_task(task_id,'历史任务名')
     window.load_history(task_id)
+    assert f'{result.quality.score:.2f} / 100' in window.summary_label.text()
     target=tmp_path / 'GUI.xlsx'
     window.export_report_to(target)
     assert not window.start_button.isEnabled()

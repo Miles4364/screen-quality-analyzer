@@ -83,7 +83,7 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
         m = result.video_metadata
         overview = _table(book, '分析概况', ['项目', '内容'], [28, 100])
         fields = [
-            ('报告', '智能会议设备投屏质量分析系统 · V0.6'),
+            ('报告', '智能会议设备投屏质量分析系统 · V0.7'),
             ('导出时间（UTC）', datetime.now(timezone.utc).isoformat(timespec='seconds')),
             ('任务 ID', (task or {}).get('id', '未入库')),
             ('任务名称', (task or {}).get('title', m.filename)),
@@ -110,6 +110,18 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
             _put(overview, row, 1, label)
             _put(overview, row, 2, value)
             overview.row_dimensions[row].height = 34 if isinstance(value, str) and len(value) > 50 else 24
+        from core.quality_score import RULE_DESCRIPTION
+        q = result.quality
+        scoring = [('辅助质量评分（满分100）', q.score if q.score is not None else '不可用'),
+                   ('评分规则版本', q.rule_version), ('评分说明', RULE_DESCRIPTION),
+                   ('黑屏并集时长（秒）', q.black_seconds),
+                   ('非黑屏疑似冻结时长（秒）', q.freeze_seconds),
+                   ('黑屏扣分', q.black_penalty), ('疑似冻结扣分', q.freeze_penalty),
+                   ('评分边界', q.reason or '项目自定义指标，非设备合格结论；历史结果按当前规则计算。')]
+        for row, (label, value) in enumerate(scoring, len(fields)+2):
+            _put(overview, row, 1, label)
+            _put(overview, row, 2, value)
+            overview.row_dimensions[row].height = 48 if label == '评分说明' else 34
         issues = _table(book, '异常明细', ['序号', '类型', '开始时间', '结束时间', '开始（秒）', '结束（秒）', '持续（秒）', '等级', '说明', '检测数据'], [8,18,19,19,14,14,14,12,56,48])
         for row, issue in enumerate(result.issues, 2):
             check_cancel()

@@ -25,7 +25,7 @@ class MainWindow(QMainWindow):
         self.report_active = False
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.6')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.7')
         self.resize(1050, 800)
         self.setMinimumSize(800, 580)
         root = QWidget()
@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel('就绪')
         self.status_label.setTextFormat(Qt.TextFormat.PlainText)
         self.status_label.setWordWrap(True)
+        self.status_label.setMinimumHeight(64)
         controls.addWidget(self.status_label, 1)
         layout.addLayout(controls)
         self.progress_bar = QProgressBar()
@@ -93,6 +94,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.progress_bar)
         self.summary_label = QLabel('尚无分析结果')
         self.summary_label.setObjectName('summary')
+        self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(['异常类型', '开始时间', '结束时间', '持续时间', '等级', '说明'])
@@ -251,6 +253,12 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(100)
         stats = result.statistics
         self.summary_label.setText(f'黑屏 {stats["black_count"]} 段    疑似冻结 {stats["freeze_count"]} 段    共 {stats["total_count"]} 个异常')
+        q = result.quality
+        self.summary_label.setText(self.summary_label.text() + '\n' + (
+            f'辅助评分 {q.score:.2f} / 100 · 黑屏扣 {q.black_penalty:.2f} · 疑似冻结扣 {q.freeze_penalty:.2f}'
+            if q.score is not None else f'评分不可用：{q.reason}'))
+        from core.quality_score import RULE_DESCRIPTION
+        self.summary_label.setToolTip(f'{q.rule_version}：{RULE_DESCRIPTION}\n项目自定义指标，需人工复核。历史结果按当前规则计算。')
         self.status_label.setText(f'分析完成 · {result.processed_frames} 帧 · {result.processing_time:.2f} 秒')
         self.review_button.setEnabled(bool(result.issues))
         self.table.setRowCount(len(result.issues))
