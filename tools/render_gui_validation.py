@@ -47,7 +47,7 @@ def finish():
             timer.stop()
             window.close()
             return
-        target = Path('docs/images/v05-analysis.png')
+        target = Path('docs/images/v06-analysis.png')
         target.parent.mkdir(parents=True, exist_ok=True)
         assert window.grab().save(str(target))
         print(window.result.statistics)
@@ -62,9 +62,9 @@ def finish():
             print(dialog.status.text())
         else:
             assert dialog.current_frame.index == round(25 * dialog.fps)
-            assert dialog.grab().save('docs/images/v05-review.png')
+            assert dialog.grab().save('docs/images/v06-review.png')
             Path('screenshots').mkdir(exist_ok=True)
-            dialog.save_image('screenshots/v05-freeze-25s.png')
+            dialog.save_image('screenshots/v06-freeze-25s.png')
             print(f'Frame {dialog.current_frame.index}, image {dialog.current_image.width()}x{dialog.current_image.height()}')
             exit_code = 0
         stage = 'history'
@@ -83,9 +83,28 @@ def finish():
         history.project_filter.setCurrentIndex(history.project_filter.findData(project_id))
         history.show()
         app.processEvents()
-        assert history.grab().save('docs/images/v05-history.png')
+        assert history.grab().save('docs/images/v06-history.png')
         print('Reopened task and screenshot association verified')
         history.close()
+        history.deleteLater()
+        window.export_report_to('reports/v06-validation.xlsx', overwrite=True)
+        stage = 'report'
+    elif stage == 'report' and window.worker is None:
+        from openpyxl import load_workbook
+        if '报告已导出' not in window.status_label.text():
+            print(window.status_label.text())
+            exit_code = 1
+        else:
+            book = load_workbook('reports/v06-validation.xlsx')
+            summary = dict(book['分析概况'].iter_rows(min_row=2, values_only=True))
+            assert summary['异常总数'] == 4
+            assert summary['关联截图数'] == 1
+            assert book['异常明细'].max_row == 5
+            assert book['截图关联']['E2'].value == '可用'
+            assert book['截图关联']['F2'].hyperlink is not None
+            book.close()
+            assert window.grab().save('docs/images/v06-export.png')
+            print('XLSX: 4 issues, 1 verified screenshot, saved task metadata confirmed')
         timer.stop()
         window.close()
         app.quit()
