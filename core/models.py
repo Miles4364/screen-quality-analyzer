@@ -90,6 +90,11 @@ class AnalysisResult:
     analyzed_duration: float
 
     @property
+    def quality(self):
+        from core.quality_score import calculate_quality
+        return calculate_quality(self)
+
+    @property
     def statistics(self):
         return {
             'black_count': sum(i.issue_type == 'BLACK_SCREEN' for i in self.issues),
