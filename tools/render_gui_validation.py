@@ -26,6 +26,12 @@ app.setStyle('Fusion')
 window = MainWindow(args.video, database_path=args.database)
 window.setStyleSheet(window.styleSheet().replace('Microsoft YaHei UI', 'Microsoft YaHei'))
 window.show()
+projects = window.store.list_projects()
+project_id = next((p['id'] for p in projects if p['name'] == '会议室投屏验收'), None)
+if project_id is None:
+    project_id = window.store.create_project('会议室投屏验收')
+window.refresh_projects(project_id)
+window.task_title_edit.setText('1080p 黑屏与冻结回归')
 window.start_analysis()
 exit_code = 1
 stage = 'analysis'
@@ -41,7 +47,7 @@ def finish():
             timer.stop()
             window.close()
             return
-        target = Path('docs/images/v04-analysis.png')
+        target = Path('docs/images/v05-analysis.png')
         target.parent.mkdir(parents=True, exist_ok=True)
         assert window.grab().save(str(target))
         print(window.result.statistics)
@@ -56,9 +62,9 @@ def finish():
             print(dialog.status.text())
         else:
             assert dialog.current_frame.index == round(25 * dialog.fps)
-            assert dialog.grab().save('docs/images/v04-review.png')
+            assert dialog.grab().save('docs/images/v05-review.png')
             Path('screenshots').mkdir(exist_ok=True)
-            dialog.save_image('screenshots/v04-freeze-25s.png')
+            dialog.save_image('screenshots/v05-freeze-25s.png')
             print(f'Frame {dialog.current_frame.index}, image {dialog.current_image.width()}x{dialog.current_image.height()}')
             exit_code = 0
         stage = 'history'
@@ -69,12 +75,15 @@ def finish():
         store = AnalysisStore(args.database)
         task = store.load_task(window.task_id)
         assert task['result'].statistics == window.result.statistics
+        assert task['project_id'] == project_id
+        assert task['title'] == '1080p 黑屏与冻结回归'
         assert len(store.list_screenshots(window.task_id)) == 1
         window.load_history(window.task_id)
         history = HistoryDialog(store, window)
+        history.project_filter.setCurrentIndex(history.project_filter.findData(project_id))
         history.show()
         app.processEvents()
-        assert history.grab().save('docs/images/v04-history.png')
+        assert history.grab().save('docs/images/v05-history.png')
         print('Reopened task and screenshot association verified')
         history.close()
         timer.stop()
