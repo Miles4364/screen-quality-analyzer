@@ -15,9 +15,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.worker = None
         self.result = None
+        self.review_dialog = None
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.2')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.3')
         self.resize(1050, 730)
         self.setMinimumSize(800, 580)
         root = QWidget()
@@ -74,7 +75,12 @@ class MainWindow(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        self.table.cellDoubleClicked.connect(self.open_review)
         layout.addWidget(self.table, 1)
+        self.review_button = QPushButton('查看截图 / 跳转视频')
+        self.review_button.setEnabled(False)
+        self.review_button.clicked.connect(self.open_review)
+        layout.addWidget(self.review_button)
         hint = QLabel('判定提示：静态 PPT 或低运动画面可能触发疑似冻结，请结合视频人工复核。')
         hint.setObjectName('muted')
         hint.setWordWrap(True)
@@ -111,6 +117,7 @@ class MainWindow(QMainWindow):
     def _path_changed(self):
         if self.worker is None:
             self.result = None
+            self.review_button.setEnabled(False)
             self.table.setRowCount(0)
             self.summary_label.setText('尚无分析结果')
             self.metadata_label.setText('视频参数将在开始分析后显示')
@@ -126,6 +133,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText('请选择有效的视频文件')
             return
         self.result = None
+        self.review_button.setEnabled(False)
         self._cancel_requested = False
         self.table.setRowCount(0)
         self.summary_label.setText('正在分析，完成后显示结果')
@@ -187,6 +195,7 @@ class MainWindow(QMainWindow):
         stats = result.statistics
         self.summary_label.setText(f'黑屏 {stats["black_count"]} 段    疑似冻结 {stats["freeze_count"]} 段    共 {stats["total_count"]} 个异常')
         self.status_label.setText(f'分析完成 · {result.processed_frames} 帧 · {result.processing_time:.2f} 秒')
+        self.review_button.setEnabled(bool(result.issues))
         self.table.setRowCount(len(result.issues))
         for row, issue in enumerate(result.issues):
             values = [
@@ -229,7 +238,36 @@ class MainWindow(QMainWindow):
         if self._close_pending:
             self.close()
 
+    def open_review(self, *args):
+        if self.result is None or not self.result.issues or self.worker is not None:
+            return
+        if self.review_dialog is not None:
+            self.review_dialog.raise_()
+            return
+        from gui.review_dialog import ReviewDialog
+        row = self.table.currentRow()
+        if row < 0:
+            row = 0
+        self.table.selectRow(row)
+        self.review_dialog = ReviewDialog(self.result, self.result.issues[row], self)
+        self.review_dialog.setModal(True)
+        self.review_dialog.finished.connect(self._review_finished)
+        self.review_dialog.show()
+
+    def _review_finished(self, *args):
+        dialog = self.review_dialog
+        self.review_dialog = None
+        if dialog is not None:
+            dialog.deleteLater()
+        if self._close_pending:
+            self.close()
+
     def closeEvent(self, event):
+        if self.review_dialog is not None:
+            self._close_pending = True
+            self.review_dialog.close()
+            event.ignore()
+            return
         if self.worker is not None:
             self._close_pending = True
             self.cancel_analysis()

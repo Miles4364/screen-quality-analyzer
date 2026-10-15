@@ -4,7 +4,7 @@ import sys
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='投屏质量分析桌面版 V0.2')
+    parser = argparse.ArgumentParser(description='投屏质量分析桌面版 V0.3')
     parser.add_argument('video_path', nargs='?', default='')
     args = parser.parse_args(argv)
     try:
