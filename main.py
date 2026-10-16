@@ -65,7 +65,7 @@ def main(argv=None):
     if task_id:
         print(f'历史任务：{task_id}')
     m = result.video_metadata
-    print('智能会议设备投屏质量分析系统 技术验证版 V0.8')
+    print('智能会议设备投屏质量分析系统 技术验证版 V0.9')
     q = result.quality
     print(f'辅助质量评分：{q.score if q.score is not None else "不可用"} / 100 | 规则：{q.rule_version}')
     print(f'黑屏扣分：{q.black_penalty:.2f} | 疑似冻结扣分：{q.freeze_penalty:.2f} | {q.reason or "项目自定义指标，需人工复核"}')

@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
         self.reviews = {}
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.8')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.9')
         self.resize(1050, 800)
         self.setMinimumSize(800, 580)
         root = QWidget()

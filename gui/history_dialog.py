@@ -16,7 +16,7 @@ class HistoryDialog(QDialog):
         self.offset = 0
         self.selected_task_id = None
         self.rows = []
-        self.setWindowTitle('项目与任务 · V0.8')
+        self.setWindowTitle('项目与任务 · V0.9')
         self.resize(1050, 560)
         layout = QVBoxLayout(self)
         self.status = QLabel('')
