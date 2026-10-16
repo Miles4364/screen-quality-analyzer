@@ -2,6 +2,7 @@ import json
 import subprocess
 
 from exceptions.video_exception import VideoProbeError
+from utils.runtime import ffprobe_command
 
 
 def probe_video(filepath: str) -> dict:
@@ -20,7 +21,7 @@ def probe_video(filepath: str) -> dict:
     """
 
     command = [
-        "ffprobe",
+        ffprobe_command(),
         "-v",
         "error",
         "-print_format",
@@ -44,7 +45,7 @@ def probe_video(filepath: str) -> dict:
 
     except FileNotFoundError as exc:
         raise VideoProbeError(
-            "未找到FFprobe，请确认FFmpeg已经正确安装。"
+            "未找到 FFprobe：请设置 SQA_FFPROBE 为完整路径，或将 ffprobe.exe 放入程序旁 tools 文件夹，或安装到 PATH。"
         ) from exc
 
     except Exception as exc:

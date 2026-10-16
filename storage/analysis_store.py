@@ -9,7 +9,8 @@ import sqlite3
 from uuid import uuid4
 from core.models import AnalysisConfig, AnalysisResult, DetectedIssue, VideoMetadata
 
-DEFAULT_DATABASE = Path(__file__).resolve().parents[1] / 'data' / 'analysis.sqlite3'
+from utils.runtime import default_database
+DEFAULT_DATABASE = default_database()
 
 
 class StorageError(Exception):
@@ -159,7 +160,7 @@ class AnalysisStore:
                 task_id, datetime.now(timezone.utc).isoformat(), result.video_metadata.filename,
                 encode(asdict(result.video_metadata)), encode(asdict(config or AnalysisConfig())),
                 result.processing_time, result.processed_frames, result.analyzed_duration,
-                mtime, '0.8', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
+                mtime, '0.9', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
             ))
             db.executemany('INSERT INTO issues VALUES (?,?,?)', (
                 (task_id, index, encode(asdict(issue))) for index, issue in enumerate(result.issues)
