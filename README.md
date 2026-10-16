@@ -1,6 +1,6 @@
 # 智能会议设备投屏质量分析系统 V1.0
 
-面向会议设备投屏测试，对录制的视频进行参数解析、黑屏及疑似冻结分析。当前桌面版为 V0.9，V1.0 是后续目标版本。
+面向会议设备投屏测试，对录制的视频进行参数解析、黑屏及疑似冻结分析。当前桌面版为 V0.9.1，V1.0 是后续目标版本。
 
 ## 当前进度
 
@@ -19,11 +19,13 @@
 |V0.8|人工复核状态、备注、筛选、历史保存与报告明细|已实现|
 |V0.9|Windows GUI/CLI 便携包、运行路径适配与打包回归|本机验证完成，独立干净 Windows 验收待补充|
 
-## Windows V0.9 便携版
+## Windows V0.9.1 便携版
 
-构建后解压 `dist/ScreenQualityAnalyzer-V0.9-Windows-x64.zip`，保留整个目录并双击 `ScreenQualityAnalyzer.exe`，不需要另装 Python。命令行入口为 `ScreenQualityAnalyzer-CLI.exe`，参数与源码 CLI 相同，输出统一使用 UTF-8。不要只复制 exe，必须保留 `_internal`。
+构建后解压 `dist/ScreenQualityAnalyzer-V0.9.1-Windows-x64.zip`，保留整个目录并双击 `ScreenQualityAnalyzer.exe`，不需要另装 Python。命令行入口为 `ScreenQualityAnalyzer-CLI.exe`，参数与源码 CLI 相同，输出统一使用 UTF-8。不要只复制 exe，必须保留 `_internal`。
 
-FFprobe 不随包分发，按优先级选择：环境变量 `SQA_FFPROBE` 指定完整路径；程序旁 `tools/ffprobe.exe`；系统 PATH。已有 FFmpeg 安装可直接使用其 FFprobe；动态发行版还需对应 DLL。样本生成需要 FFmpeg，正常分析只调用 FFprobe。
+V0.9.1 已内置 `tools/ffprobe.exe`（5.1.2 静态版），解压即可使用，无需安装 FFmpeg 或修改 PATH。请保留 tools 文件夹。已有 `SQA_FFPROBE` 环境变量仍优先；若其路径失效，清除该变量可恢复使用内置版本。程序随后才会回退到系统 PATH。源码运行及样本生成仍按下方安装说明配置。
+
+内置组件保持原样，原发行说明、GPLv3 许可证、对应 FFmpeg 源码地址、版本和哈希随包放在 `licenses/FFprobe`；出处见 [发行方](https://www.gyan.dev/ffmpeg/builds/)。当前包用于本地验收，正式对外分发前仍需核对对应源码及依赖源码提供方式，不能将单个源码链接视为完整分发材料。
 
 打包版默认数据库位于 `%LOCALAPPDATA%/ScreenQualityAnalyzer/analysis.sqlite3`，源码版仍使用项目 `data/analysis.sqlite3`。迁移旧历史需先备份，关闭程序后复制数据库，或启动时用 `--database "旧数据库完整路径"`。视频及截图不自动搬迁。V0.8→V0.9 不改变数据库结构版本 3。
 
@@ -31,8 +33,8 @@ FFprobe 不随包分发，按优先级选择：环境变量 `SQA_FFPROBE` 指定
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-build.txt
-.venv\Scripts\python tools/build_windows.py
-.venv\Scripts\python tools/validate_windows.py --package dist/ScreenQualityAnalyzer --video "samples/最终验收 1080p.mp4" --ffprobe "C:/ffmpeg/bin/ffprobe.exe" --output "reports/打包验证"
+.venv\Scripts\python tools/build_windows.py --ffmpeg-dir "D:/Software/ffmpeg-5.1.2-essentials_build"
+.venv\Scripts\python tools/validate_windows.py --package dist/ScreenQualityAnalyzer --video "samples/最终验收 1080p.mp4" --output "reports/打包验证"
 ```
 
 构建输出 ZIP、SHA-256 校验文件、组件版本和已安装组件的许可证文件。构建依赖快照见 `docs/build-environment-v09.txt`；没有安装器、代码签名和自动更新。本机隔离 PATH 的验证不能替代独立 Windows 电脑验收。
@@ -66,7 +68,7 @@ print(result.statistics)
 
 每次分析创建独立检测器，引擎可重复使用；视频逐帧处理，不将整个视频载入内存。使用 `with VideoReader(...)` 可保证异常或提前退出时释放文件。读取帧数低于 OpenCV 报告帧数时按提前结束报错。
 
-## 桌面版 V0.9
+## 桌面版 V0.9.1
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-gui.txt
@@ -252,3 +254,5 @@ V0.7 评分规则与验证见 [验证记录](docs/V0.7-validation.md)。
 V0.8 数据迁移与人工复核验证见 [验证记录](docs/V0.8-validation.md)。
 
 V0.9 构建与验证记录见 [验证记录](docs/V0.9-validation.md)。
+
+V0.9.1 内置 FFprobe 验证见 [验证记录](docs/V0.9.1-validation.md)。
