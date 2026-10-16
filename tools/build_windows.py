@@ -58,7 +58,7 @@ def main():
                 shutil.copy2(dist.locate_file(file),destination)
     import json
     (package/'build-versions.json').write_text(json.dumps(versions,indent=2),encoding='utf-8')
-    archive = Path(shutil.make_archive(str(ROOT/'dist'/'ScreenQualityAnalyzer-V0.9.1-Windows-x64'),'zip',ROOT/'dist','ScreenQualityAnalyzer'))
+    archive = Path(shutil.make_archive(str(ROOT/'dist'/'ScreenQualityAnalyzer-V0.9.2-Windows-x64'),'zip',ROOT/'dist','ScreenQualityAnalyzer'))
     with archive.open('rb') as stream:
         digest = hashlib.file_digest(stream,'sha256').hexdigest()
     archive.with_suffix('.sha256').write_text(f'{digest}  {archive.name}\n',encoding='ascii')

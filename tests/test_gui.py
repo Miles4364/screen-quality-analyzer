@@ -70,7 +70,8 @@ def test_background_error(window, app, tmp_path, monkeypatch):
     window.start_analysis()
     wait_until(app, lambda: window.worker is None)
     assert window.start_button.isEnabled()
-    assert '失败' in window.status_label.text()
+    assert '未完成' in window.status_label.text()
+    assert '测试解码失败' in window.metadata_label.text()
     assert window.result is None
 
 

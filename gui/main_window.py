@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
         self.reviews = {}
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.9.1')
+        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.9.2')
         self.resize(1050, 800)
         self.setMinimumSize(800, 580)
         root = QWidget()
@@ -217,6 +217,7 @@ class MainWindow(QMainWindow):
         self.worker = AnalysisWorker(path, parent=self)
         self.worker.metadata_ready.connect(self._show_metadata)
         self.worker.progress.connect(self._show_progress)
+        self.worker.status.connect(self.status_label.setText)
         self.worker.result_ready.connect(self._show_result)
         self.worker.cancelled.connect(self._show_cancelled)
         self.worker.failed.connect(self._show_error)
@@ -281,7 +282,11 @@ class MainWindow(QMainWindow):
             if q.score is not None else f'评分不可用：{q.reason}'))
         from core.quality_score import RULE_DESCRIPTION
         self.summary_label.setToolTip(f'{q.rule_version}：{RULE_DESCRIPTION}\n项目自定义指标，需人工复核。历史结果按当前规则计算。')
+        if result.warnings:
+            self.summary_label.setText(self.summary_label.text() + '\n' + '；'.join(result.warnings))
         self.status_label.setText(f'分析完成 · {result.processed_frames} 帧 · {result.processing_time:.2f} 秒')
+        if result.warnings:
+            self.status_label.setText('分析完成 · ' + '；'.join(result.warnings))
         self.review_button.setEnabled(bool(result.issues))
         self.table.setRowCount(len(result.issues))
         for row, issue in enumerate(result.issues):
@@ -493,7 +498,7 @@ class MainWindow(QMainWindow):
             return
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.status_label.setText('分析失败，请检查文件及 FFprobe 安装')
+        self.status_label.setText('分析未完成，请查看上方具体原因')
         self.summary_label.setText('未生成结果')
         self.metadata_label.setText(message)
 

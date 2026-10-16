@@ -83,7 +83,7 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
         m = result.video_metadata
         overview = _table(book, '分析概况', ['项目', '内容'], [28, 100])
         fields = [
-            ('报告', '智能会议设备投屏质量分析系统 · V0.9.1'),
+            ('报告', '智能会议设备投屏质量分析系统 · V0.9.2'),
             ('导出时间（UTC）', datetime.now(timezone.utc).isoformat(timespec='seconds')),
             ('任务 ID', (task or {}).get('id', '未入库')),
             ('任务名称', (task or {}).get('title', m.filename)),
@@ -104,6 +104,7 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
             ('冻结最短持续（秒）', config.freeze_duration),
             ('判定说明', '疑似冻结可能由静态 PPT 或低运动内容触发，结果需人工复核。'),
             ('报告性质', '静态结果快照；修改单元格不会重新执行检测或更新汇总。'),
+            ('读取提示', '；'.join(result.warnings) or '无帧数偏差提示'),
             ('定位与截图', '按固定帧率定位。截图不嵌入报告；本地链接依赖原文件路径，分享时请同时提供截图。'),
         ]
         for row, (label, value) in enumerate(fields, 2):

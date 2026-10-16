@@ -160,7 +160,7 @@ class AnalysisStore:
                 task_id, datetime.now(timezone.utc).isoformat(), result.video_metadata.filename,
                 encode(asdict(result.video_metadata)), encode(asdict(config or AnalysisConfig())),
                 result.processing_time, result.processed_frames, result.analyzed_duration,
-                mtime, '0.9.1', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
+                mtime, '0.9.2', self._name(title if title is not None else result.video_metadata.filename[:120], 120), project_id,
             ))
             db.executemany('INSERT INTO issues VALUES (?,?,?)', (
                 (task_id, index, encode(asdict(issue))) for index, issue in enumerate(result.issues)

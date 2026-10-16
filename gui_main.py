@@ -4,7 +4,7 @@ import sys
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='投屏质量分析桌面版 V0.9.1')
+    parser = argparse.ArgumentParser(description='投屏质量分析桌面版 V0.9.2')
     parser.add_argument('video_path', nargs='?', default='')
     parser.add_argument('--database', help='本地 SQLite 数据库路径')
     args = parser.parse_args(argv)

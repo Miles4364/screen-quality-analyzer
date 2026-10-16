@@ -8,6 +8,7 @@ from exceptions.video_exception import AnalysisCancelled
 class AnalysisWorker(QThread):
     metadata_ready = Signal(object)
     progress = Signal(int, int)
+    status = Signal(str)
     result_ready = Signal(object)
     failed = Signal(str)
     cancelled = Signal()
@@ -27,6 +28,7 @@ class AnalysisWorker(QThread):
             result = AnalysisEngine(self.config).analyze(
                 self.path, on_metadata=self.metadata_ready.emit,
                 on_progress=self.progress.emit, should_cancel=self._cancel.is_set,
+                on_status=self.status.emit,
             )
             if self._cancel.is_set():
                 self.cancelled.emit()
