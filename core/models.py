@@ -95,6 +95,13 @@ class AnalysisResult:
         return calculate_quality(self)
 
     @property
+    def warnings(self):
+        expected = self.video_metadata.frame_count
+        if expected > self.processed_frames:
+            return [f'帧数提示：元数据 {expected} 帧，实际解码 {self.processed_frames} 帧；结果按实际帧数统计，请复核视频末尾。']
+        return []
+
+    @property
     def statistics(self):
         return {
             'black_count': sum(i.issue_type == 'BLACK_SCREEN' for i in self.issues),

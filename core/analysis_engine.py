@@ -13,7 +13,7 @@ class AnalysisEngine:
         self.config = config or AnalysisConfig()
 
     def analyze(self, video_path, *, on_metadata=None, on_progress=None,
-                should_cancel=None):
+                should_cancel=None, on_status=None):
         """分析 CFR 视频。
 
         on_progress(processed, total) 至多每 100ms 调用一次，另含起点与终点。
@@ -34,6 +34,8 @@ class AnalysisEngine:
         if on_metadata:
             on_metadata(metadata)
         with VideoReader(metadata.filepath) as reader:
+            reader.should_cancel = should_cancel
+            reader.on_verify = on_status
             total = reader.frame_count
             if on_progress:
                 on_progress(0, total)

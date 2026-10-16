@@ -1,8 +1,48 @@
 import json
 import subprocess
+from time import monotonic
 
 from exceptions.video_exception import VideoProbeError
 from utils.runtime import ffprobe_command
+from exceptions.video_exception import AnalysisCancelled
+
+
+def count_decoded_frames(filepath, should_cancel=None, timeout=180):
+    """仅在近末尾计数不一致时独立核验；错误、超时和取消不能视为成功。"""
+    command = [ffprobe_command(), '-v', 'error', '-select_streams', 'v:0',
+               '-count_frames', '-show_entries', 'stream=nb_read_frames', '-of', 'json', filepath]
+    process = None
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        deadline = monotonic() + timeout
+        while True:
+            if should_cancel and should_cancel():
+                raise AnalysisCancelled('帧数核验已取消')
+            if monotonic() >= deadline:
+                raise VideoProbeError('帧数核验超时，未确认视频完整性')
+            try:
+                stdout, stderr = process.communicate(timeout=.2)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+        if should_cancel and should_cancel():
+            raise AnalysisCancelled('帧数核验已取消')
+        if process.returncode != 0 or stderr.strip():
+            raise VideoProbeError('独立解码核验发现错误：' + stderr.decode('utf-8',errors='replace')[:1000])
+        streams = json.loads(stdout)['streams']
+        count = int(streams[0]['nb_read_frames'])
+        if count <= 0:
+            raise ValueError('没有可解码帧')
+        return count
+    except (AnalysisCancelled, VideoProbeError):
+        raise
+    except (OSError, ValueError, KeyError, IndexError, TypeError) as exc:
+        raise VideoProbeError(f'帧数核验失败：{exc}') from exc
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.communicate()
 
 
 def probe_video(filepath: str) -> dict:

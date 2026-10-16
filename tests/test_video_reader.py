@@ -49,3 +49,28 @@ def test_context_releases_on_error(monkeypatch):
 def test_not_open():
     with pytest.raises(VideoReadError):
         VideoReader('example').read()
+
+
+@pytest.mark.parametrize('verified,success', [(5637,True),(5639,False),(5600,False)])
+def test_tail_count_requires_independent_agreement(monkeypatch,verified,success):
+    cap = capture(monkeypatch,count=5639,fps=24)
+    cap.read.side_effect = [(False,None)]
+    monkeypatch.setattr('core.video_reader.count_decoded_frames',lambda *args:verified)
+    reader = VideoReader('test')
+    reader.open()
+    reader.current_index = 5637
+    if success:
+        assert reader.read() is None
+        assert reader.read() is None
+    else:
+        with pytest.raises(VideoReadError):reader.read()
+    cap.release.assert_called_once()
+
+
+def test_large_deficit_does_not_use_verification(monkeypatch):
+    cap = capture(monkeypatch,count=5639,fps=24)
+    cap.read.side_effect = [(False,None)]
+    def unexpected(*args):raise AssertionError('明显截断不应放行')
+    monkeypatch.setattr('core.video_reader.count_decoded_frames',unexpected)
+    reader=VideoReader('test');reader.open();reader.current_index=5500
+    with pytest.raises(VideoReadError):reader.read()
