@@ -1,6 +1,6 @@
 # 智能会议设备投屏质量分析系统 V1.0
 
-面向会议设备投屏测试，对录制的视频进行参数解析、黑屏及疑似冻结分析。当前桌面版为 V0.8，V1.0 是后续目标版本。
+面向会议设备投屏测试，对录制的视频进行参数解析、黑屏及疑似冻结分析。当前桌面版为 V0.9，V1.0 是后续目标版本。
 
 ## 当前进度
 
@@ -17,6 +17,25 @@
 |V0.6|Excel 报告、截图链接校验、后台导出与取消、CLI 导出|已实现|
 |V0.7|可解释辅助评分、重叠去重、界面/CLI/报告统一展示|已实现|
 |V0.8|人工复核状态、备注、筛选、历史保存与报告明细|已实现|
+|V0.9|Windows GUI/CLI 便携包、运行路径适配与打包回归|本机验证完成，独立干净 Windows 验收待补充|
+
+## Windows V0.9 便携版
+
+构建后解压 `dist/ScreenQualityAnalyzer-V0.9-Windows-x64.zip`，保留整个目录并双击 `ScreenQualityAnalyzer.exe`，不需要另装 Python。命令行入口为 `ScreenQualityAnalyzer-CLI.exe`，参数与源码 CLI 相同，输出统一使用 UTF-8。不要只复制 exe，必须保留 `_internal`。
+
+FFprobe 不随包分发，按优先级选择：环境变量 `SQA_FFPROBE` 指定完整路径；程序旁 `tools/ffprobe.exe`；系统 PATH。已有 FFmpeg 安装可直接使用其 FFprobe；动态发行版还需对应 DLL。样本生成需要 FFmpeg，正常分析只调用 FFprobe。
+
+打包版默认数据库位于 `%LOCALAPPDATA%/ScreenQualityAnalyzer/analysis.sqlite3`，源码版仍使用项目 `data/analysis.sqlite3`。迁移旧历史需先备份，关闭程序后复制数据库，或启动时用 `--database "旧数据库完整路径"`。视频及截图不自动搬迁。V0.8→V0.9 不改变数据库结构版本 3。
+
+开发者构建（Windows x64）：
+
+```powershell
+.venv\Scripts\python -m pip install -r requirements-build.txt
+.venv\Scripts\python tools/build_windows.py
+.venv\Scripts\python tools/validate_windows.py --package dist/ScreenQualityAnalyzer --video "samples/最终验收 1080p.mp4" --ffprobe "C:/ffmpeg/bin/ffprobe.exe" --output "reports/打包验证"
+```
+
+构建输出 ZIP、SHA-256 校验文件、组件版本和已安装组件的许可证文件。构建依赖快照见 `docs/build-environment-v09.txt`；没有安装器、代码签名和自动更新。本机隔离 PATH 的验证不能替代独立 Windows 电脑验收。
 
 ## 安装和运行
 
@@ -47,7 +66,7 @@ print(result.statistics)
 
 每次分析创建独立检测器，引擎可重复使用；视频逐帧处理，不将整个视频载入内存。使用 `with VideoReader(...)` 可保证异常或提前退出时释放文件。读取帧数低于 OpenCV 报告帧数时按提前结束报错。
 
-## 桌面版 V0.8
+## 桌面版 V0.9
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-gui.txt
@@ -179,6 +198,8 @@ CLI 默认拒绝覆盖已有报告，明确添加 `--overwrite-report` 才允许
 
 ## 测试与可复现样本
 
+V0.9 完整源码回归：**155 项通过，无跳过，退出码 0**。另验证实际打包的 GUI/CLI、中文路径、JSON、历史复核及 Excel 导出；独立干净系统验收仍待补充。
+
 V0.8 完整回归：**152 项通过，无跳过，退出码 0**。新增复核存储、迁移回滚、锁定、报告、GUI 编辑和筛选验证。
 
 V0.7 完整回归：**143 项通过，无跳过，退出码 0**。新增评分边界测试，并验证 CLI、历史恢复、GUI 和 Excel 的 90.83 分结果一致。
@@ -210,7 +231,7 @@ V0.6 验证（2026-10-15）：完整回归 **128 项通过，无跳过，退出�
 
 `core/` 保存模型、解析器、读取器、检测器及分析引擎；`tests/` 保存单元/集成测试；`gui/` 保存窗口和后台任务；`storage/` 保存 SQLite 数据访问；`reporting/` 保存 Excel 导出；`tools/` 保存样本生成器与界面渲染验证脚本；`samples/` 保存本地样本；`docs/` 保存开发与验证记录。
 
-V0.2–V0.8 已实现。后续按顺序推进：V0.9 打包和回归；V1.0 发布及软著材料整理。算法方面补充真实会议素材、VFR 时间戳支持及静态内容误报评估。
+V0.2–V0.8 已实现；V0.9 已构建 Windows 便携包并完成本机隔离验证，独立干净 Windows 验收待补充。后续推进：V1.0 发布及软著材料整理。算法方面补充真实会议素材、VFR 时间戳支持及静态内容误报评估。
 
 ## 软著用途
 
@@ -229,3 +250,5 @@ V0.6 验证详情见 [验证记录](docs/V0.6-validation.md)。
 V0.7 评分规则与验证见 [验证记录](docs/V0.7-validation.md)。
 
 V0.8 数据迁移与人工复核验证见 [验证记录](docs/V0.8-validation.md)。
+
+V0.9 构建与验证记录见 [验证记录](docs/V0.9-validation.md)。
