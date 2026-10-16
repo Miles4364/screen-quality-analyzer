@@ -8,7 +8,7 @@ import subprocess
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for flag in ('package','video','ffprobe','output'):
+    for flag in ('package','video','output'):
         parser.add_argument('--'+flag,required=True)
     args = parser.parse_args()
     package, video, output = (Path(value).resolve() for value in (args.package,args.video,args.output))
@@ -17,10 +17,13 @@ def main():
     env['PATH'] = str(Path(env.get('WINDIR','C:/Windows'))/'System32')
     env['PYTHONIOENCODING'] = 'utf-8'
     cli = package/'ScreenQualityAnalyzer-CLI.exe'
+    assert (package/'tools'/'ffprobe.exe').is_file(), '分发包缺少内置 FFprobe'
+    # 显式无效覆盖应报错，而不是偷偷使用系统或内置版本。
+    env['SQA_FFPROBE'] = str(output/'missing-ffprobe.exe')
     missing = subprocess.run([str(cli),str(video),'--json'],cwd=output,env=env,capture_output=True,timeout=60)
     assert missing.returncode == 1, '缺少 FFprobe 应明确失败'
     assert b'FFprobe' in missing.stderr
-    env['SQA_FFPROBE'] = str(Path(args.ffprobe).resolve())
+    del env['SQA_FFPROBE']
     command = [str(cli),str(video),'--json','--database',str(output/'cli.sqlite3'),'--report',str(output/'cli.xlsx'),'--overwrite-report']
     completed = subprocess.run(command,cwd=output,env=env,capture_output=True,timeout=120)
     assert completed.returncode == 0, completed.stderr.decode(errors='replace')

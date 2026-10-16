@@ -83,7 +83,7 @@ def export_report(result, output, *, config=None, task=None, screenshots=None,
         m = result.video_metadata
         overview = _table(book, '分析概况', ['项目', '内容'], [28, 100])
         fields = [
-            ('报告', '智能会议设备投屏质量分析系统 · V0.9'),
+            ('报告', '智能会议设备投屏质量分析系统 · V0.9.1'),
             ('导出时间（UTC）', datetime.now(timezone.utc).isoformat(timespec='seconds')),
             ('任务 ID', (task or {}).get('id', '未入库')),
             ('任务名称', (task or {}).get('title', m.filename)),
