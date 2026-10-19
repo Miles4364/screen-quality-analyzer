@@ -1,4 +1,4 @@
-投屏质量分析 V0.9.2 Windows x64 便携版
+投屏质量分析 V0.9.3 Windows x64 便携版
 
 1. 解压整个文件夹，保留 _internal。双击 ScreenQualityAnalyzer.exe。
 2. 已内置 tools/ffprobe.exe，正常使用无需安装 FFmpeg 或设置环境变量。
@@ -12,7 +12,7 @@
    ScreenQualityAnalyzer-CLI.exe "视频.mp4" --json
    ScreenQualityAnalyzer-CLI.exe "视频.mp4" --report "报告.xlsx"
 6. 备份：退出程序后备份数据库、原视频与截图。升级到结构版本 3 后，旧版
-   V0.7 及更早软件无法读取；回退须使用升级前备份。V0.8 到 V0.9.2 不改变结构。
+   V0.7 及更早软件无法读取；回退须使用升级前备份。V0.8 到 V0.9.3 不改变结构。
 7. 不要只复制 exe，必须保留整个文件夹。此版本没有安装器、自动更新或代码签名。
    正式发布前仍需在独立、无开发环境的 Windows 电脑验收。
 8. 辅助评分与疑似冻结需人工判断，不代表设备合格结论；仅保证 CFR 定位。

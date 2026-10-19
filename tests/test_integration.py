@@ -2,6 +2,8 @@
 import shutil
 import subprocess
 import sys
+import os
+import json
 
 import pytest
 
@@ -47,6 +49,19 @@ def test_real_video(tmp_path, fps, size):
     for script in ['main.py', 'black_test.py']:
         result = subprocess.run([sys.executable, script, str(path)], capture_output=True)
         assert result.returncode == 0, result.stderr
+    # 模拟 Windows 非 UTF-8 输出环境，覆盖中文及特殊字符文件名。
+    unicode_path = path.with_name('投屏测试 🎬.mp4')
+    path.rename(unicode_path)
+    env = dict(os.environ, PYTHONIOENCODING='gb18030', PYTHONUTF8='0')
+    result = subprocess.run([sys.executable, 'main.py', str(unicode_path), '--json'],
+                            capture_output=True, env=env, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.decode('utf-8'))['video_metadata']['filename'] == unicode_path.name
+    missing = unicode_path.with_name('不存在 🎬.mp4')
+    result = subprocess.run([sys.executable, 'main.py', str(missing)],
+                            capture_output=True, env=env, timeout=30)
+    assert result.returncode == 1
+    assert '分析失败' in result.stderr.decode('utf-8')
 
 
 def test_invalid_files(tmp_path):

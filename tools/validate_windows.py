@@ -15,7 +15,8 @@ def main():
     output.mkdir(parents=True,exist_ok=True)
     env = {k:v for k,v in os.environ.items() if k not in ('PYTHONPATH','PYTHONHOME','VIRTUAL_ENV','SQA_FFPROBE','QT_PLUGIN_PATH','QT_QPA_PLATFORM_PLUGIN_PATH')}
     env['PATH'] = str(Path(env.get('WINDIR','C:/Windows'))/'System32')
-    env['PYTHONIOENCODING'] = 'utf-8'
+    # 即使环境要求本地编码，CLI 仍应提供稳定的 UTF-8 JSON。
+    env['PYTHONIOENCODING'] = 'gb18030'
     cli = package/'ScreenQualityAnalyzer-CLI.exe'
     assert (package/'tools'/'ffprobe.exe').is_file(), '分发包缺少内置 FFprobe'
     # 显式无效覆盖应报错，而不是偷偷使用系统或内置版本。

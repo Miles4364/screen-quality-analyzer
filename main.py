@@ -11,6 +11,10 @@ from storage.analysis_store import AnalysisStore, StorageError
 
 
 def main(argv=None):
+    # 源码和便携包使用相同编码，管道输出不能依赖 Windows 代码页。
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description='投屏质量分析：Metadata、BlackScreen、Freeze')
     parser.add_argument('video_path', help='待分析的视频路径')
     parser.add_argument('--database', help='可选：保存结果到指定 SQLite 数据库')
@@ -68,7 +72,7 @@ def main(argv=None):
     m = result.video_metadata
     for warning in result.warnings:
         print(warning)
-    print('智能会议设备投屏质量分析系统 技术验证版 V0.9.2')
+    print('智能会议设备投屏质量分析系统 技术验证版 V0.9.3')
     q = result.quality
     print(f'辅助质量评分：{q.score if q.score is not None else "不可用"} / 100 | 规则：{q.rule_version}')
     print(f'黑屏扣分：{q.black_penalty:.2f} | 疑似冻结扣分：{q.freeze_penalty:.2f} | {q.reason or "项目自定义指标，需人工复核"}')
