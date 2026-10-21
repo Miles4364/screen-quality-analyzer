@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "author": "Python Software Foundation",
+    "title": "dataclasses — Data Classes — Python 3.11 documentation",
+    "url": "https://docs.python.org/3.11/library/dataclasses.html",
+    "accessed": "2026-10-20",
+    "supports": "Python 3.11 数据类的字段声明、初始化及序列化辅助接口。本项目用数据类表达视频元数据、分析配置、事件与结果，不以替换标准库作为原创性证明。"
+  },
+  {
+    "id": 2,
+    "author": "The Qt Company",
+    "title": "PySide6.QtCore.QThread — Qt for Python",
+    "url": "https://doc.qt.io/qtforpython-6/PySide6/QtCore/QThread.html",
+    "accessed": "2026-10-20",
+    "supports": "QThread 的后台执行、线程归属及信号连接机制。用于说明耗时分析与图形界面更新分开执行，结果由信号传回界面线程。"
+  },
+  {
+    "id": 3,
+    "author": "OpenCV",
+    "title": "cv::VideoCapture Class Reference",
+    "url": "https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html",
+    "accessed": "2026-10-20",
+    "supports": "VideoCapture 打开视频、读取下一帧、获取属性及释放资源的接口。read 返回失败既可能意味着读取结束，也可能意味着未取得下一帧，需要结合本项目的结束条件核验。"
+  },
+  {
+    "id": 4,
+    "author": "OpenCV",
+    "title": "Operations on arrays",
+    "url": "https://docs.opencv.org/4.x/d2/de8/group__core__array.html",
+    "accessed": "2026-10-20",
+    "supports": "absdiff 计算两幅同尺寸图像的逐元素绝对差。本项目在缩放后的相邻灰度帧上计算差值，并统计超过像素阈值的比例。"
+  },
+  {
+    "id": 5,
+    "author": "NumPy Developers",
+    "title": "numpy.mean — NumPy Manual",
+    "url": "https://numpy.org/doc/stable/reference/generated/numpy.mean.html",
+    "accessed": "2026-10-20",
+    "supports": "数组算术平均值。本项目使用 numpy.mean 计算灰度平均亮度，以及布尔差异矩阵中变化像素的比例。该接口文档不提供本项目阈值或评分权重的依据。"
+  },
+  {
+    "id": 6,
+    "author": "FFmpeg Developers",
+    "title": "ffprobe Documentation",
+    "url": "https://ffmpeg.org/ffprobe.html",
+    "accessed": "2026-10-20",
+    "supports": "视频流和容器信息读取、JSON 输出、流选择、show_entries 与 count_frames 参数。count_frames 统计每个流的帧数，用于本项目极小末尾计数差异的独立核验。"
+  },
+  {
+    "id": 7,
+    "author": "SQLite",
+    "title": "Transaction",
+    "url": "https://www.sqlite.org/lang_transaction.html",
+    "accessed": "2026-10-20",
+    "supports": "BEGIN、COMMIT、ROLLBACK 以及 IMMEDIATE 事务的语义。用于说明任务、事件、截图关联和人工复核信息的事务保存。"
+  },
+  {
+    "id": 8,
+    "author": "openpyxl Developers",
+    "title": "Tutorial — openpyxl documentation",
+    "url": "https://openpyxl.readthedocs.io/en/stable/tutorial.html",
+    "accessed": "2026-10-20",
+    "supports": "工作簿、工作表、单元格读写与保存。本项目据此生成 Excel 文件，目标文件保护和临时文件替换属于本项目实现。"
+  },
+  {
+    "id": 9,
+    "author": "PyInstaller Development Team",
+    "title": "What PyInstaller Does and How It Does It",
+    "url": "https://pyinstaller.org/en/stable/operating-mode.html",
+    "accessed": "2026-10-20",
+    "supports": "解释器与依赖收集、单目录打包，以及分发结果对构建平台的依赖。用于说明 Windows 便携包的组成和启动方式，不据此声称已完成所有 Windows 环境的兼容性验证。"
+  }
+]
