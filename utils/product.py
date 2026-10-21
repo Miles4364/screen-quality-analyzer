@@ -1,0 +1,5 @@
+APP_NAME = '智能会议设备投屏质量分析系统'
+VERSION = '1.0'
+DISPLAY_VERSION = f'V{VERSION}'
+APP_TITLE = f'{APP_NAME} · {DISPLAY_VERSION}'
+PACKAGE_NAME = f'ScreenQualityAnalyzer-{DISPLAY_VERSION}-Windows-x64'

@@ -5,9 +5,12 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
     QLineEdit, QMainWindow, QProgressBar, QPushButton, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget, QComboBox, QInputDialog,
+    QSplitter, QStackedWidget, QTreeWidget, QTreeWidgetItem, QScrollArea, QSizePolicy,
 )
+from gui.analysis_charts import AnalysisCharts
 from gui.worker import AnalysisWorker
 from storage.analysis_store import AnalysisStore, StorageError
+from utils.product import APP_NAME, DISPLAY_VERSION
 from utils.time_util import seconds_to_time
 
 
@@ -26,19 +29,62 @@ class MainWindow(QMainWindow):
         self.reviews = {}
         self._cancel_requested = False
         self._close_pending = False
-        self.setWindowTitle('智能会议设备投屏质量分析系统 · V0.9.3')
-        self.resize(1050, 800)
-        self.setMinimumSize(800, 580)
+        self.setWindowTitle(f'{APP_NAME} · {DISPLAY_VERSION}')
+        self.resize(1440, 900)
+        self.setMinimumSize(1100, 720)
         root = QWidget()
         self.setCentralWidget(root)
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(32, 28, 32, 28)
-        layout.setSpacing(18)
-        title = QLabel('投屏质量分析')
+        outer = QVBoxLayout(root)
+        outer.setContentsMargins(20, 18, 20, 18)
+        outer.setSpacing(16)
+        header = QHBoxLayout()
+        title = QLabel(APP_NAME)
         title.setObjectName('title')
-        layout.addWidget(title)
-        subtitle = QLabel('导入录制视频，定位黑屏与疑似冻结片段。')
-        subtitle.setObjectName('muted')
+        header.addWidget(title)
+        header.addStretch()
+        self.analysis_nav = QPushButton('分析工作台')
+        self.chart_nav = QPushButton('统计图表')
+        for button in (self.analysis_nav, self.chart_nav):
+            button.setCheckable(True)
+            button.setAutoExclusive(True)
+            button.setObjectName('navigation')
+            header.addWidget(button)
+        self.analysis_nav.setChecked(True)
+        outer.addLayout(header)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        outer.addWidget(self.workspace_splitter, 1)
+
+        sidebar = QWidget()
+        sidebar.setMinimumWidth(190)
+        side_layout = QVBoxLayout(sidebar)
+        side_layout.setContentsMargins(0, 0, 8, 0)
+        side_title = QLabel('项目与任务')
+        side_title.setObjectName('sectionTitle')
+        side_layout.addWidget(side_title)
+        self.sidebar_hint = QLabel('最近 200 个任务 · 双击打开')
+        self.sidebar_hint.setObjectName('muted')
+        self.sidebar_hint.setWordWrap(True)
+        side_layout.addWidget(self.sidebar_hint)
+        self.project_tree = QTreeWidget()
+        self.project_tree.setHeaderHidden(True)
+        self.project_tree.setAccessibleName('项目与历史任务')
+        self.project_tree.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.project_tree.itemActivated.connect(self._activate_tree_item)
+        self.project_tree.itemClicked.connect(self._select_tree_project)
+        side_layout.addWidget(self.project_tree, 1)
+        self.refresh_tree_button = QPushButton('刷新任务列表')
+        self.refresh_tree_button.clicked.connect(lambda: self.refresh_projects())
+        side_layout.addWidget(self.refresh_tree_button)
+        self.workspace_splitter.addWidget(sidebar)
+
+        self.workspace_stack = QStackedWidget()
+        workbench = QWidget()
+        layout = QVBoxLayout(workbench)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(12)
+        subtitle = QLabel('分析工作台')
+        subtitle.setObjectName('sectionTitle')
         layout.addWidget(subtitle)
         row = QHBoxLayout()
         self.path_edit = QLineEdit(video_path)
@@ -51,6 +97,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(row)
         task_row = QHBoxLayout()
         self.project_picker = QComboBox()
+        self.project_picker.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.project_picker.setMinimumContentsLength(6)
+        self.project_picker.setMaximumWidth(200)
+        self.project_picker.currentTextChanged.connect(self.project_picker.setToolTip)
         self.project_picker.addItem('未分组', None)
         self.new_project_button = QPushButton('新建项目')
         self.new_project_button.clicked.connect(self.create_project)
@@ -65,6 +115,7 @@ class MainWindow(QMainWindow):
         self.metadata_label = QLabel('视频参数将在开始分析后显示')
         self.metadata_label.setTextFormat(Qt.TextFormat.PlainText)
         self.metadata_label.setWordWrap(True)
+        self.metadata_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.metadata_label.setObjectName('card')
         layout.addWidget(self.metadata_label)
         controls = QHBoxLayout()
@@ -87,9 +138,10 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel('就绪')
         self.status_label.setTextFormat(Qt.TextFormat.PlainText)
         self.status_label.setWordWrap(True)
-        self.status_label.setMinimumHeight(64)
-        controls.addWidget(self.status_label, 1)
+        self.status_label.setMinimumHeight(24)
+        self.status_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         layout.addLayout(controls)
+        layout.addWidget(self.status_label)
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
         layout.addWidget(self.progress_bar)
@@ -108,6 +160,7 @@ class MainWindow(QMainWindow):
         self.edit_review_button.clicked.connect(self.edit_issue_review)
         self.edit_review_button.setEnabled(False)
         self.review_summary = QLabel('')
+        self.review_summary.setWordWrap(True)
         review_controls.addWidget(self.review_filter)
         review_controls.addWidget(self.edit_review_button)
         review_controls.addWidget(self.review_summary)
@@ -116,11 +169,13 @@ class MainWindow(QMainWindow):
         self.table.setHorizontalHeaderLabels(['异常类型', '开始时间', '结束时间', '持续时间', '等级', '说明', '复核状态'])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         self.table.cellDoubleClicked.connect(self.open_review)
+        self.table.itemSelectionChanged.connect(self._update_detail)
         layout.addWidget(self.table, 1)
         self.review_button = QPushButton('查看截图 / 跳转视频')
         self.review_button.setEnabled(False)
@@ -140,25 +195,120 @@ class MainWindow(QMainWindow):
         hint.setObjectName('muted')
         hint.setWordWrap(True)
         layout.addWidget(hint)
+        self.workspace_stack.addWidget(workbench)
+        self.charts = AnalysisCharts()
+        self.workspace_stack.addWidget(self.charts)
+        self.workspace_splitter.addWidget(self.workspace_stack)
+        self.analysis_nav.clicked.connect(lambda: self.workspace_stack.setCurrentIndex(0))
+        self.chart_nav.clicked.connect(lambda: self.workspace_stack.setCurrentIndex(1))
+        detail_panel = QWidget()
+        detail_panel.setMinimumWidth(200)
+        detail_layout = QVBoxLayout(detail_panel)
+        detail_layout.setContentsMargins(10, 0, 0, 0)
+        detail_heading = QLabel('任务与事件详情')
+        detail_heading.setObjectName('sectionTitle')
+        detail_layout.addWidget(detail_heading)
+        detail_scroll = QScrollArea()
+        detail_scroll.setWidgetResizable(True)
+        self.detail_label = QLabel('选择视频开始分析，或从左侧打开历史任务。')
+        self.detail_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.detail_label.setWordWrap(True)
+        self.detail_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.detail_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.detail_label.setMargin(14)
+        detail_scroll.setWidget(self.detail_label)
+        detail_layout.addWidget(detail_scroll, 1)
+        self.workspace_splitter.addWidget(detail_panel)
+        self.workspace_splitter.setStretchFactor(0, 0)
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.workspace_splitter.setStretchFactor(2, 0)
+        self.workspace_splitter.setSizes([210, 960, 230])
         self.path_edit.textChanged.connect(self._path_changed)
         self.setStyleSheet('''
-            QMainWindow { background: #f4f7fb; }
-            QWidget { color: #24344a; font-family: "Microsoft YaHei UI"; font-size: 14px; }
-            QLabel#title { font-size: 28px; font-weight: 700; }
-            QLabel#muted { color: #65758b; }
-            QLabel#card { background: white; border: 1px solid #dbe3ee; border-radius: 8px; padding: 18px; }
-            QLabel#summary { font-size: 16px; font-weight: 600; }
-            QLineEdit { background: white; border: 1px solid #cbd6e4; border-radius: 6px; padding: 10px; }
-            QPushButton { background: white; border: 1px solid #cbd6e4; border-radius: 6px; padding: 10px 20px; }
-            QPushButton:hover { background: #e8eff9; }
-            QPushButton#primary { background: #245fcc; color: white; border: none; }
-            QPushButton:disabled { background: #e6ebf2; color: #8995a6; }
-            QProgressBar { border: none; background: #e0e7f1; border-radius: 5px; text-align: center; height: 20px; }
-            QProgressBar::chunk { background: #4585e5; border-radius: 5px; }
-            QTableWidget { background: white; alternate-background-color: #f6f9fd; gridline-color: #e5ebf3; border: 1px solid #dbe3ee; }
-            QHeaderView::section { background: #eaf0f8; padding: 10px; border: none; font-weight: 600; }
+            QMainWindow { background: #f1f5f3; }
+            QWidget { background: #f1f5f3; color: #24483f; font-family: "Microsoft YaHei UI"; font-size: 13px; }
+            QLabel#title { font-size: 24px; font-weight: 700; color: #166156; }
+            QLabel#sectionTitle { font-size: 17px; font-weight: 600; }
+            QLabel#muted { color: #607a71; }
+            QLabel#card { background: white; border: 1px solid #c8d9d2; padding: 12px; }
+            QLabel#summary { font-size: 14px; font-weight: 600; }
+            QLineEdit, QComboBox, QPlainTextEdit { background: white; border: 1px solid #b9cdc4; padding: 8px; }
+            QAbstractItemView { background: white; color: #24483f; selection-background-color: #166156; selection-color: white; }
+            QScrollArea > QWidget > QLabel { background: white; }
+            QToolTip { background: white; color: #24483f; border: 1px solid #b9cdc4; }
+            QPushButton { background: white; border: 1px solid #b9cdc4; padding: 9px 14px; }
+            QPushButton:hover { background: #e0eee7; border-color: #166156; }
+            QPushButton#primary, QPushButton#navigation:checked { background: #166156; color: white; border-color: #166156; }
+            QPushButton:disabled { background: #e4ece7; color: #879a92; border-color: #ccd9d2; }
+            QProgressBar { border: 1px solid #c8d9d2; background: #e2ece6; text-align: center; height: 18px; }
+            QProgressBar::chunk { background: #6ea28e; }
+            QTableWidget, QTreeWidget { background: white; alternate-background-color: #f2f7f4; gridline-color: #dfebe4; border: 1px solid #c8d9d2; }
+            QTableWidget::item:selected, QTreeWidget::item:selected { background: #166156; color: white; }
+            QHeaderView::section { background: #e0ece5; padding: 8px; border: none; font-weight: 600; }
+            QScrollArea { background: white; border: 1px solid #c8d9d2; }
+            QTabWidget::pane { border: 1px solid #c8d9d2; background: white; }
+            QTabBar::tab { background: #e0ece5; border: 1px solid #c8d9d2; padding: 10px 14px; }
+            QTabBar::tab:selected { background: #166156; color: white; }
+            QSplitter::handle { background: #d8e5de; width: 3px; }
         ''')
         self.refresh_projects()
+
+    def _refresh_task_tree(self, projects):
+        self.project_tree.clear()
+        groups = {}
+        for project in [{'id': None, 'name': '未分组'}, *projects]:
+            node = QTreeWidgetItem([project['name']])
+            node.setData(0, Qt.ItemDataRole.UserRole, ('project', project['id']))
+            self.project_tree.addTopLevelItem(node)
+            groups[project['id']] = node
+        for task in self.store.list_tasks(limit=200):
+            node = QTreeWidgetItem([task['title']])
+            node.setData(0, Qt.ItemDataRole.UserRole, ('task', task['id']))
+            node.setToolTip(0, f'{task["filename"]}\n{task["issue_count"]} 个异常\n{task["created_at"]}')
+            groups.get(task['project_id'], groups[None]).addChild(node)
+            if task['id'] == self.task_id:
+                self.project_tree.setCurrentItem(node)
+        self.project_tree.expandAll()
+
+    def _activate_tree_item(self, item, column=0):
+        kind, identifier = item.data(0, Qt.ItemDataRole.UserRole)
+        if kind == 'task' and self.worker is None:
+            self.load_history(identifier)
+            self.analysis_nav.setChecked(True)
+            self.workspace_stack.setCurrentIndex(0)
+
+    def _select_tree_project(self, item, column=0):
+        kind, identifier = item.data(0, Qt.ItemDataRole.UserRole)
+        if kind == 'project' and self.worker is None:
+            index = self.project_picker.findData(identifier)
+            self.project_picker.setCurrentIndex(max(0, index))
+
+    def _update_detail(self):
+        if self.result is None:
+            self.detail_label.setText('选择视频开始分析，或从左侧打开历史任务。')
+            return
+        result = self.result
+        metadata = result.video_metadata
+        lines = [metadata.filename, '', '分析范围',
+                 f'{seconds_to_time(result.analyzed_duration)} · {result.processed_frames} 帧',
+                 f'{metadata.resolution} · {metadata.fps:.3f} FPS', '']
+        row = self.table.currentRow()
+        if 0 <= row < len(result.issues) and not self.table.isRowHidden(row):
+            from core.review import REVIEW_LABELS
+            issue = result.issues[row]
+            record = self.reviews.get(row, {})
+            lines += [f'事件 {row + 1} · ' + ('黑屏' if issue.issue_type == 'BLACK_SCREEN' else '疑似冻结'),
+                      f'开始：{seconds_to_time(issue.start_time)}',
+                      f'结束：{seconds_to_time(issue.end_time)}', f'持续：{issue.duration:.3f} 秒',
+                      '', issue.description, '', f'人工复核：{REVIEW_LABELS[record.get("status", "PENDING")]}']
+            if record.get('note'):
+                lines += ['复核备注', record['note']]
+        else:
+            lines += ['在结果表中选择一条异常，可查看时间、检测说明与复核备注。']
+        if result.warnings:
+            lines += ['', '读取提示', *result.warnings]
+        self.detail_label.setText('\n'.join(lines))
 
     @Slot()
     def choose_file(self):
@@ -186,7 +336,10 @@ class MainWindow(QMainWindow):
             self.summary_label.setText('尚无分析结果')
             self.metadata_label.setText('视频参数将在开始分析后显示')
             self.status_label.setText('就绪')
+            self.status_label.setToolTip('')
             self.progress_bar.setValue(0)
+            self.charts.set_result(None)
+            self._update_detail()
 
     @Slot()
     def start_analysis(self):
@@ -197,6 +350,8 @@ class MainWindow(QMainWindow):
             self.status_label.setText('请选择有效的视频文件')
             return
         self.result = None
+        self.charts.set_result(None)
+        self._update_detail()
         self.reviews = {}
         self.review_summary.clear()
         self.export_button.setEnabled(False)
@@ -212,6 +367,7 @@ class MainWindow(QMainWindow):
         self.summary_label.setText('正在分析，完成后显示结果')
         self.metadata_label.setText('正在读取视频参数…')
         self.status_label.setText('正在解析视频…')
+        self.status_label.setToolTip('')
         self.progress_bar.setRange(0, 0)
         self._set_busy(True)
         self.worker = AnalysisWorker(path, parent=self)
@@ -225,6 +381,8 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _set_busy(self, busy):
+        self.project_tree.setEnabled(not busy)
+        self.refresh_tree_button.setEnabled(not busy)
         self.edit_review_button.setEnabled(not busy and self.task_id is not None and bool(self.result and self.result.issues))
         self.project_picker.setEnabled(not busy)
         self.new_project_button.setEnabled(not busy)
@@ -271,6 +429,8 @@ class MainWindow(QMainWindow):
             self._show_cancelled()
             return
         self.result = result
+        self.reviews = {}
+        self.table.clearContents()
         self.export_button.setEnabled(self.worker is None)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
@@ -304,6 +464,7 @@ class MainWindow(QMainWindow):
         if persist:
             self.save_result()
         self.refresh_reviews()
+        self._update_detail()
 
     def save_result(self):
         if self.result is None or self.task_id is not None:
@@ -314,6 +475,7 @@ class MainWindow(QMainWindow):
             self.screenshots_button.setEnabled(True)
             self.edit_review_button.setEnabled(self.worker is None and bool(self.result.issues))
             self.status_label.setText(self.status_label.text() + ' · 已保存')
+            self.refresh_projects()
         except StorageError as exc:
             self.save_result_button.setEnabled(True)
             self.status_label.setText(f'结果未保存，可点击“保存结果”重试：{exc}')
@@ -329,11 +491,13 @@ class MainWindow(QMainWindow):
                 self.project_picker.addItem(project['name'], project['id'])
             index = self.project_picker.findData(selected)
             self.project_picker.setCurrentIndex(max(0, index))
+            self._refresh_task_tree(projects)
         except StorageError as exc:
             self.status_label.setText(f'项目列表不可用：{exc}')
 
     def refresh_reviews(self):
         from core.review import REVIEW_LABELS, review_counts
+        self.charts.set_result(self.result, self.reviews.values())
         try:
             records = self.store.load_task(self.task_id)['reviews'] if self.task_id else []
         except StorageError as exc:
@@ -341,6 +505,7 @@ class MainWindow(QMainWindow):
             self.edit_review_button.setEnabled(False)
             return
         self.reviews = {r['issue_ordinal']: r for r in records}
+        self.charts.set_result(self.result, records)
         for row in range(self.table.rowCount()):
             record = self.reviews.get(row, {})
             item = QTableWidgetItem(REVIEW_LABELS[record.get('status', 'PENDING')])
@@ -357,6 +522,7 @@ class MainWindow(QMainWindow):
             self.table.setRowHidden(row, selected is not None and self.reviews.get(row, {}).get('status', 'PENDING') != selected)
         self.table.clearSelection()
         self.table.setCurrentCell(-1, -1)
+        self._update_detail()
 
     def edit_issue_review(self):
         if self.worker is not None or self.task_id is None:
@@ -398,6 +564,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(str(exc))
             return
         self.path_edit.setText(task['result'].video_metadata.filepath)
+        self.status_label.setToolTip('')
         self._cancel_requested = False
         self.task_id = task_id
         self.refresh_projects(task['project_id'])
@@ -456,7 +623,8 @@ class MainWindow(QMainWindow):
     def _report_ready(self, path):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
-        self.status_label.setText(f'报告已导出：{path}')
+        self.status_label.setText(f'报告已导出：{Path(path).name}')
+        self.status_label.setToolTip(str(path))
 
     @Slot(str)
     def _report_failed(self, message):
@@ -486,6 +654,8 @@ class MainWindow(QMainWindow):
     @Slot()
     def _show_cancelled(self):
         self.result = None
+        self.charts.set_result(None)
+        self._update_detail()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.status_label.setText('已取消')

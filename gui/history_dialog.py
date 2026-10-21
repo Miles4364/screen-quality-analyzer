@@ -7,6 +7,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                               QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QListWidget, QComboBox, QLineEdit, QInputDialog)
 from storage.analysis_store import StorageError
+from utils.product import DISPLAY_VERSION
 
 
 class HistoryDialog(QDialog):
@@ -16,7 +17,7 @@ class HistoryDialog(QDialog):
         self.offset = 0
         self.selected_task_id = None
         self.rows = []
-        self.setWindowTitle('项目与任务 · V0.9.2')
+        self.setWindowTitle(f'项目与任务 · {DISPLAY_VERSION}')
         self.resize(1050, 560)
         layout = QVBoxLayout(self)
         self.status = QLabel('')

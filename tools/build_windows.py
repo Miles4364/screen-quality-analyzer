@@ -9,6 +9,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from utils.product import APP_TITLE, PACKAGE_NAME
 
 
 def main():
@@ -44,6 +46,7 @@ def main():
     (ffnotice/'ffprobe.sha256').write_text(probe_hash+'  ffprobe.exe\n',encoding='ascii')
     names = ['PySide6','PySide6_Addons','PySide6_Essentials','shiboken6','numpy','opencv-python','openpyxl','et_xmlfile','pyinstaller']
     versions = {}
+    versions['application'] = APP_TITLE
     versions['FFprobe'] = {'version':probe.stdout.splitlines()[0], 'sha256':probe_hash}
     for name in names:
         dist = metadata.distribution(name)
@@ -58,7 +61,7 @@ def main():
                 shutil.copy2(dist.locate_file(file),destination)
     import json
     (package/'build-versions.json').write_text(json.dumps(versions,indent=2),encoding='utf-8')
-    archive = Path(shutil.make_archive(str(ROOT/'dist'/'ScreenQualityAnalyzer-V0.9.3-Windows-x64'),'zip',ROOT/'dist','ScreenQualityAnalyzer'))
+    archive = Path(shutil.make_archive(str(ROOT/'dist'/PACKAGE_NAME),'zip',ROOT/'dist','ScreenQualityAnalyzer'))
     with archive.open('rb') as stream:
         digest = hashlib.file_digest(stream,'sha256').hexdigest()
     archive.with_suffix('.sha256').write_text(f'{digest}  {archive.name}\n',encoding='ascii')

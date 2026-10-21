@@ -8,6 +8,7 @@ from core.models import AnalysisConfig
 from exceptions.video_exception import VideoError
 from utils.time_util import seconds_to_time
 from storage.analysis_store import AnalysisStore, StorageError
+from utils.product import APP_TITLE
 
 
 def main(argv=None):
@@ -72,7 +73,7 @@ def main(argv=None):
     m = result.video_metadata
     for warning in result.warnings:
         print(warning)
-    print('智能会议设备投屏质量分析系统 技术验证版 V0.9.3')
+    print(APP_TITLE)
     q = result.quality
     print(f'辅助质量评分：{q.score if q.score is not None else "不可用"} / 100 | 规则：{q.rule_version}')
     print(f'黑屏扣分：{q.black_penalty:.2f} | 疑似冻结扣分：{q.freeze_penalty:.2f} | {q.reason or "项目自定义指标，需人工复核"}')

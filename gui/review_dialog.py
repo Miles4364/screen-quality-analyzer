@@ -8,12 +8,13 @@ from PySide6.QtWidgets import (QDialog, QLabel, QPushButton, QSlider,
 from gui.review_worker import ReviewWorker
 from storage.analysis_store import StorageError
 from utils.time_util import seconds_to_time
+from utils.product import DISPLAY_VERSION
 
 
 class ReviewDialog(QDialog):
     def __init__(self, result, issue, parent=None, *, store=None, task_id=None, issue_ordinal=None):
         super().__init__(parent)
-        self.setWindowTitle('异常画面复核 · V0.9.2')
+        self.setWindowTitle(f'异常画面复核 · {DISPLAY_VERSION}')
         self.resize(900, 650)
         self.setMinimumSize(640, 480)
         self.store = store
